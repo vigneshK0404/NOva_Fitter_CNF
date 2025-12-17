@@ -48,5 +48,5 @@ def generateParams():
 
 
 size = 1000
-produceData(2,3,1.5,5,7,2,0.5,10.5,11)
+produceData(2,3,1.5,5,7,2,0.5,10.5,100)
     
