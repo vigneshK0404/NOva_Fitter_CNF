@@ -2,11 +2,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def gauss(N,mu,sig,x):
-    return N/(sig*np.sqrt(np.pi)) * np.exp(-np.square(x-mu)/(2*np.square(sig)))
+    term1 = N / (sig * np.sqrt(2 * np.pi))
+    term2 = np.exp(-0.5 * ((x - mu) / sig)**2)
+    return term1 * term2 
 
 
 def produceData(N1,mu1,sig1,N2,mu2,sig2,start,end,size):
     raw = np.linspace(start,end,size)
+    print(raw)
 
     x = gauss(N1,mu1,sig1,raw)
     y = gauss(N2,mu2,sig2,raw)
@@ -22,10 +25,10 @@ def produceData(N1,mu1,sig1,N2,mu2,sig2,start,end,size):
 
     fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(12, 4))
 
-    axes[0].hist(data, bins=10, color='Yellow', edgecolor='black')
+    axes[0].plot(raw,data, color='Yellow')
     axes[0].set_title('Histogram without Poisson')
 
-    axes[1].hist(dataPoisson, bins=10, color='Pink', edgecolor='black')
+    axes[1].plot(raw, dataPoisson, color='Pink')
     axes[1].set_title('Histogram with Poisson')
 
     for ax in axes:
@@ -44,9 +47,13 @@ def generateParams():
     N2 = np.random.uniform(0,3,1)
 
     mu1 = np.random.uniform(1,3,1)
+    mu2 = np.random.uniform(5,9,1)
 
+    sig1 = np.random.uniform(1,3,1)
+    sig2 = np.random.uniform(5,9,1)
 
+    return N1,mu1,sig1,N2,mu2,sig2
 
-size = 1000
-produceData(2,3,1.5,5,7,2,0.5,10.5,100)
+N1,mu1,sig1,N2,mu2,sig2 = generateParams()
+produceData(N1,mu1,sig1,N2,mu2,sig2,0,10,10)
     
