@@ -5,7 +5,7 @@ import numpy as np
 import sklearn
 import matplotlib.pyplot as plt
 import tqdm
-from torch.utils.data import DataSet, DataLoader
+from torch.utils.data import DataLoader
 
 #nflows
 from nflows.flows.base import Flow
@@ -42,7 +42,7 @@ class autoEncoder(torch.nn.Module):
     def __init__(self, 
                  input_dim : int, 
                  middle_dim : int, 
-                 output_dim : int) -> None:
+                 output_dim : int):
         super().__init__()
 
         self.encoder = torch.nn.Sequential(
@@ -62,28 +62,25 @@ class autoEncoder(torch.nn.Module):
     def _decode(self,x):
         return self.decoder(x)
 
-    def _forward(self,x):
-        eData = self.encode(x)
-        dData = self.decode(eData)
+    def forward(self,x):
+        eData = self._encode(x)
+        dData = self._decode(eData)
         return dData
 
 
 class AE_trainer:
     def __init__(
             self,
-            input_dim : int,
-            middle_dim : int,
-            output_dim : int,
             AEModel : autoEncoder,
             train_data: DataLoader,
-            gpu_id: int
+            gpu_id: int,
             batch_size : int
-            ) -> None :
+            ):
         
         self.gpu_id = gpu_id
-        self.AEModel = AEModel(input_dim,middle_dim,output_dim).to(gpu_id)
+        self.AEModel = AEModel.to(gpu_id)
         self.train_data = train_data
-        self.AEmodel = DDP(AEmodel, device_ids=[gpu_id])
+        self.AEModel = DDP(AEModel, device_ids=[gpu_id])
         self.r_losses = []
         self.plotDir = "/raid/vigneshk/plots/"
 
@@ -93,10 +90,10 @@ class AE_trainer:
         self.optimizer = torch.optim.Adam(AEModel.parameters(), lr = 1e-4)
         self.batch_size = batch_size
 
-    def _run_batch(self, x_input, y_pred):
+    def _run_batch(self, x_input):
         self.optimizer.zero_grad()
-        y_true = self.AEModel._forward(x_input)
-        loss = self.loss_fn(y_true,y_pred)
+        y_true = self.AEModel(x_input)
+        loss = self.loss_fn(y_true,x_input)
         loss.backward()
         self.optimizer.step()
         return loss.item()
@@ -105,7 +102,7 @@ class AE_trainer:
         b_size = len(next(iter(self.train_data))[0])
         print(f"[GPU{self.gpu_id}] Epoch {epoch} | Batchsize: {b_size} | Steps: {len(self.train_data)}")
         self.train_data.sampler.set_epoch(epoch)
-        for x_batch in train_data:
+        for x_batch in self.train_data:
             x_batch = x_batch.to(self.gpu_id)
             self.r_losses.append(self._run_batch(x_batch))
 
@@ -113,7 +110,7 @@ class AE_trainer:
         for epoch in range(max_epoch):
             self._run_epoch(epoch)
         plt.plot(self.r_losses)
-        plt.savefig(self.plotDir)
+        plt.savefig(self.plotDir+"AELoss.png")
 
 
 class CNF():

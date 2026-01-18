@@ -20,8 +20,9 @@ def ddp_setup(rank : int, world_size: int):
 
 
 #A = torch.rand(10,6)
-B = torch.rand(1000000,10)
-
+base = "/raid/vigneshk/"
+dataBase = base + "data/"
+dataPoisson = np.load(dataBase + "poissonData.npy")
 #print(A,B,sep="\n")
 
 
@@ -68,8 +69,8 @@ def prepare_dataloader(dataset: torch.tensor, batch_size: int):
 
 def main(rank: int, world_size: int, total_epochs: int, batch_size: int):
     ddp_setup(rank, world_size)
-    dataset = B
-    model = autoEncoder(10,5,16,rank).to(rank)
+    dataset = torch.tensor(dataPoisson).float()
+    model = autoEncoder(20,10,16,rank).to(rank)
     model = DDP(model, device_ids=[rank])
 
     optimizer = torch.optim.Adam(model.parameters(), lr = 1e-4)
@@ -94,7 +95,7 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int):
         r_losses.append(np.mean(np.array(iter_losses)))
 
     plt.plot(r_losses)
-    plt.savefig("/plots/losses.png")
+    plt.savefig("/raid/vigneshk/plots/losses.png")
     destroy_process_group()
 
 if __name__ == "__main__":

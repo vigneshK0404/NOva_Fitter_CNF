@@ -1,20 +1,23 @@
 from modelClasses import *
 
 
-
-dnumber = 0
-device = torch.device(f"cuda:{dnumber}" if torch.cuda.is_available() else "cpu")
-print(device)
-
 base = "/raid/vigneshk/"
 dataBase = base + "data/"
-
 dataPoisson = np.load(dataBase + "poissonData.npy")
 thetaData = np.load(dataBase + "theta_data.npy")
 thetaStandard = np.load(dataBase + "thetaData_standard.npy")
 
+def prepare_Model():
+    input_dim = int(dataPoisson.shape[1])
+    middle_dim = 32
+    output_dim = int(input_dim / 2)
 
-def prepare_dataloader(dataset: Dataset, batch_size: int):
+    #print(f"input:{input_dim}, output_dim:{output_dim}")
+    return autoEncoder(input_dim, middle_dim, output_dim)
+
+
+
+def prepare_dataloader(dataset: torch.tensor, batch_size: int):
     return DataLoader(
         dataset,
         batch_size=batch_size,
@@ -23,11 +26,18 @@ def prepare_dataloader(dataset: Dataset, batch_size: int):
         sampler=DistributedSampler(dataset)
     )
 
-
-def main(rank: int, world_size: int, save_every: int, total_epochs: int, batch_size: int):
+def main(rank: int, world_size: int, total_epochs: int, batch_size: int):
     ddp_setup(rank, world_size)
-    dataset, model, optimizer = load_train_objs()
+    AEmodel = prepare_Model()
+    dataset = torch.tensor(dataPoisson).float()
     train_data = prepare_dataloader(dataset, batch_size)
-    trainer = Trainer(model, train_data, optimizer, rank, save_every)
-    trainer.train(total_epochs)
+    trainer = AE_trainer(AEmodel, train_data, rank, batch_size)
+    trainer._train(total_epochs)
     destroy_process_group()
+
+
+if __name__ == "__main__":
+    world_size = torch.cuda.device_count()
+    batch_size = 4096
+    total_epochs = 5
+    mp.spawn(main, args=(world_size, total_epochs, batch_size), nprocs=world_size)
