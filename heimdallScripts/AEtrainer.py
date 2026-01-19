@@ -1,11 +1,7 @@
-from modelClasses import *
+from modelClasses import ddp_setup, autoEncoder, AE_trainer
 
 
-base = "/raid/vigneshk/"
-dataBase = base + "data/"
-dataPoisson = np.load(dataBase + "poissonData.npy")
-thetaData = np.load(dataBase + "theta_data.npy")
-thetaStandard = np.load(dataBase + "thetaData_standard.npy")
+dataPoisson = np.load("/raid/vigneshk/data/poissonData.npy")
 
 def prepare_Model():
     input_dim = int(dataPoisson.shape[1])
@@ -44,20 +40,3 @@ if __name__ == "__main__":
     total_epochs = 10
     mp.spawn(main, args=(world_size, total_epochs, batch_size), nprocs=world_size)
 
-
-#print(AEmodel.r_losses[-1])
-'''
-testP,_ ,_= generateTrainingData(1,1)
-testP = torch.tensor(testP, dtype = torch.float32)
-testP = testP.to(device)
-decodePtest = encodeModel(testP).to("cpu").detach().numpy().flatten()
-testP_CPU = testP.to("cpu").detach().numpy().flatten()
-
-print(decodePtest)
-print(testP_CPU)
-
-bins = np.arange(0,20.5,0.5)
-plt.hist(bins[:-1], bins,weights=testP_CPU,color='blue',edgecolor='black',alpha=0.5,label="TrueBin")
-plt.hist(bins[:-1], bins,weights=decodePtest,color='red',edgecolor='black',alpha=0.4,label="decodedBin")
-plt.legend()
-'''

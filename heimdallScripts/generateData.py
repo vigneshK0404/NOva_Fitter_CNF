@@ -13,8 +13,6 @@ thetaData_unique = thetaData[::repeatSample,:]
 thetaMean = np.mean(thetaData_unique,axis=0)
 thetaStd = np.std(thetaData_unique,axis = 0)
 
-
-
 thetaData_standard = (thetaData - thetaMean)/thetaStd
 
 print(thetaData_standard)

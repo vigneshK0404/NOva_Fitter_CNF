@@ -84,7 +84,7 @@ class AE_trainer:
         self.r_losses = []
         self.plotDir = "/raid/vigneshk/plots/"
 
-        #CAN CHANGE TRAINING PARAMETERS HERE
+        #CAN CHANGE AE TRAINING PARAMETERS HERE
 
         self.loss_fn = torch.nn.MSELoss() 
         self.optimizer = torch.optim.Adam(self.AEModel.parameters(), lr = 1e-4)
@@ -130,30 +130,39 @@ class AE_trainer:
 
     def _save_checkpoint(self):
         print(self.r_losses)
-        ckp = self.AEModel.module.state_dict()
         PATH = "/raid/vigneshk/Models/AE_checkpoint.pt"
-        torch.save(ckp, PATH)
+        torch.save({
+        "AE_Model": self.AEModel.module.state_dict(),
+        "AE_Optim": self.optimizer.module.state_dict(),
+        },  PATH)
+
         print(f"Training checkpoint saved at {PATH}")
 
 
 
-class CNF():
-  def __init__(self,
-               n_features, #Central data features 6 Ni,mui,sigi (i1,2)
-               context_features, #compressed Poisson features
-               n_layers,
-               hidden_features
-               ):
+class CNF(torch.nn.Module):
+    def __init__(self,
+                 n_features, #Central data features 6 Ni,mui,sigi (i1,2)
+                 context_features, #compressed Poisson features
+                 n_layers,
+                 hidden_features
+                 ):
+        super().__init__()
 
-    base_dist = StandardNormal(shape=[n_features])
-    transforms = []
+        base_dist = StandardNormal(shape=[n_features])
+        transforms = []
 
-    for i in range(n_layers):
-      transforms.append(MaskedAffineAutoregressiveTransform(features=n_features, hidden_features=hidden_features, context_features=context_features)) #conditioned on compressed poissonData
-      transforms.append(ReversePermutation(features=n_features))
+        for i in range(n_layers):
+            transforms.append(MaskedAffineAutoregressiveTransform(features=n_features, 
+                                                                  hidden_features=hidden_features, 
+                                                                  context_features=context_features)) #conditioned on compressed poissonData
+            transforms.append(ReversePermutation(features=n_features))
 
-    transform = CompositeTransform(transforms)
-    self.flow = Flow(transform,base_dist)
+        transform = CompositeTransform(transforms)
+        self.flow = Flow(transform,base_dist)
 
-    
+
+ 
+
+     
 

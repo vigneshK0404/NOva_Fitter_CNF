@@ -63,13 +63,9 @@ def generateTrainingData(uniqueNum, sampleNum):
 
 
 
-def plots(dP,fG,binEdges):
+def plots(dP,fG,binEdges,address):
   plt.plot(binEdges[1:],fG.flatten())
   plt.hist(binEdges[:-1],binEdges,weights=fG.flatten(),edgecolor='black',label='gauss')
   plt.hist(binEdges[:-1],binEdges,weights=dP.flatten(),edgecolor='black',label='poisson')
   plt.legend()
-  plt.savefig("exampleData.png")
-
-
-
-
+  plt.savefig(address)
