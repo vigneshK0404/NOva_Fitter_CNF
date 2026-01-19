@@ -4,7 +4,7 @@ import torchinfo
 import numpy as np
 import sklearn
 import matplotlib.pyplot as plt
-import tqdm
+from tqdm import tqdm
 from torch.utils.data import DataLoader
 
 #nflows
@@ -80,49 +80,80 @@ class AE_trainer:
         self.gpu_id = gpu_id
         self.AEModel = AEModel.to(gpu_id)
         self.train_data = train_data
-        self.AEModel = DDP(AEModel, device_ids=[gpu_id])
+        self.AEModel = DDP(self.AEModel, device_ids=[gpu_id])
         self.r_losses = []
         self.plotDir = "/raid/vigneshk/plots/"
 
         #CAN CHANGE TRAINING PARAMETERS HERE
 
         self.loss_fn = torch.nn.MSELoss() 
-        self.optimizer = torch.optim.Adam(AEModel.parameters(), lr = 1e-4)
+        self.optimizer = torch.optim.Adam(self.AEModel.parameters(), lr = 1e-4)
         self.batch_size = batch_size
 
-    def _run_batch(self, x_input):
+    def _run_batch(self, x_input, record_loss : bool):
         self.optimizer.zero_grad()
         y_true = self.AEModel(x_input)
         loss = self.loss_fn(y_true,x_input)
         loss.backward()
         self.optimizer.step()
-        return loss.item()
+
+        if record_loss:
+            return loss.item()
+        else :
+            return None
+        
 
     def _run_epoch(self,epoch):
-        b_size = len(next(iter(self.train_data))[0])
-        print(f"[GPU{self.gpu_id}] Epoch {epoch} | Batchsize: {b_size} | Steps: {len(self.train_data)}")
+        #b_size = len(next(iter(self.train_data))[0])        
+        print(f"[GPU{self.gpu_id}] Epoch {epoch} | Steps: {len(self.train_data)}")
         self.train_data.sampler.set_epoch(epoch)
+        counter = 0
         for x_batch in self.train_data:
-            x_batch = x_batch.to(self.gpu_id)
-            self.r_losses.append(self._run_batch(x_batch))
+            counter += 1
+            x_batch = x_batch.to(self.gpu_id, non_blocking = True)
+            loss_rec = self._run_batch(x_batch,record_loss = (counter % 100 == 0))
+
+            if loss_rec is not None:
+                self.r_losses.append(loss_rec)
+                #print(loss_rec)
+
 
     def _train(self,max_epoch):
-        for epoch in range(max_epoch):
+        for epoch in tqdm(range(max_epoch)):
             self._run_epoch(epoch)
+            if (epoch == max_epoch -1) and self.gpu_id == 0:
+                self._save_checkpoint()
+
+
         plt.plot(self.r_losses)
         plt.savefig(self.plotDir+"AELoss.png")
 
+    def _save_checkpoint(self):
+        print(self.r_losses)
+        ckp = self.AEModel.module.state_dict()
+        PATH = "/raid/vigneshk/Models/AE_checkpoint.pt"
+        torch.save(ckp, PATH)
+        print(f"Training checkpoint saved at {PATH}")
+
+
 
 class CNF():
-  def __init__(self,n_features, context_features,n_layers):
+  def __init__(self,
+               n_features, #Central data features 6 Ni,mui,sigi (i1,2)
+               context_features, #compressed Poisson features
+               n_layers,
+               hidden_features
+               ):
 
     base_dist = StandardNormal(shape=[n_features])
     transforms = []
 
     for i in range(n_layers):
-      transforms.append(MaskedAffineAutoregressiveTransform(features=n_features, hidden_features=16, context_features=context_features)) #conditioned on compressed poissonData
+      transforms.append(MaskedAffineAutoregressiveTransform(features=n_features, hidden_features=hidden_features, context_features=context_features)) #conditioned on compressed poissonData
       transforms.append(ReversePermutation(features=n_features))
 
     transform = CompositeTransform(transforms)
     self.flow = Flow(transform,base_dist)
+
+    
 
