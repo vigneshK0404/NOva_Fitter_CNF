@@ -1,4 +1,14 @@
 from modelClasses import ddp_setup, autoEncoder, AE_trainer
+import torch
+import numpy as np
+from torch.utils.data import Dataset, DataLoader
+import torch.multiprocessing as mp
+from torch.utils.data.distributed import DistributedSampler
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.distributed import init_process_group, destroy_process_group
+import os
+
+
 
 
 dataPoisson = np.load("/raid/vigneshk/data/poissonData.npy")
@@ -30,7 +40,7 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int):
     train_data = prepare_dataloader(dataset, batch_size)
     trainer = AE_trainer(AEmodel, train_data, rank, batch_size)
     trainer._train(total_epochs)
-    #trainer._save_checkpoint()
+    trainer._save_checkpoint()
     destroy_process_group()
 
 

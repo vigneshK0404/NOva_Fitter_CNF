@@ -1,11 +1,9 @@
 #base stack
 import torch
 import torchinfo
-import numpy as np
-import sklearn
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-from torch.utils.data import DataLoader
+from torch.utils.data import Dataset, DataLoader
 
 #nflows
 from nflows.flows.base import Flow
@@ -115,7 +113,7 @@ class AE_trainer:
 
             if loss_rec is not None:
                 self.r_losses.append(loss_rec)
-                #print(loss_rec)
+                print(loss_rec)
 
 
     def _train(self,max_epoch):
@@ -133,19 +131,32 @@ class AE_trainer:
         PATH = "/raid/vigneshk/Models/AE_checkpoint.pt"
         torch.save({
         "AE_Model": self.AEModel.module.state_dict(),
-        "AE_Optim": self.optimizer.module.state_dict(),
+        "AE_Optim": self.optimizer.state_dict(),
         },  PATH)
 
         print(f"Training checkpoint saved at {PATH}")
 
 
 
+class trainingDataSet(Dataset):
+  def __init__(self,thetaData, dataPoisson_latent):
+    assert len(thetaData) == len(dataPoisson_latent)
+    self.thetaData = thetaData
+    self.dataPoisson_latent = dataPoisson_latent
+
+  def __len__(self):
+    return len(self.thetaData)
+
+  def __getitem__(self, idx):
+    return self.thetaData[idx], self.dataPoisson_latent[idx]
+
+
 class CNF(torch.nn.Module):
     def __init__(self,
-                 n_features, #Central data features 6 Ni,mui,sigi (i1,2)
-                 context_features, #compressed Poisson features
-                 n_layers,
-                 hidden_features
+                 n_features : int, #Central data features 6 Ni,mui,sigi (i1,2)
+                 context_features : int, #compressed Poisson features
+                 n_layers : int,
+                 hidden_features : int
                  ):
         super().__init__()
 
@@ -160,6 +171,100 @@ class CNF(torch.nn.Module):
 
         transform = CompositeTransform(transforms)
         self.flow = Flow(transform,base_dist)
+
+    def forward(self,x,context):
+        return self.flow.log_prob(x,context=context)
+
+
+class CNF_trainer():
+    def __init__(self,
+                 CNFModel : CNF,
+                 train_data: DataLoader,
+                 gpu_id: int,
+                 batch_size : int
+                 ):
+
+        self.gpu_id = gpu_id
+        self.CNFModel = CNFModel.to(gpu_id)
+        self.train_data = train_data
+        self.CNFModel = DDP(self.CNFModel, device_ids=[gpu_id])
+        self.cnf_losses = []
+        self.plotDir = "/raid/vigneshk/plots/"
+
+        #CNF HYPER-PARAMS TO CHANGE
+
+        self.optimizer = torch.optim.Adam(self.CNFModel.parameters(), lr = 1e-3)
+        self.batch_size = batch_size
+
+    def _run_batch(self, x_input, x_cond,record_loss : bool):
+        self.optimizer.zero_grad()
+        nll = - self.CNFModel(x_input, context=x_cond)
+        cnf_loss = nll.mean()
+        cnf_loss.backward()
+        self.optimizer.step()
+
+        if record_loss:
+            return cnf_loss.item()
+        else :
+            return None
+
+
+    def _run_epoch(self,epoch):    
+        print(f"[GPU{self.gpu_id}] Epoch {epoch} | Steps: {len(self.train_data)}")
+        self.train_data.sampler.set_epoch(epoch)
+        counter = 0
+        for x_batch,x_cond in self.train_data:
+            counter += 1
+            x_batch = x_batch.to(self.gpu_id, non_blocking = True)
+            x_cond = x_cond.to(self.gpu_id, non_blocking = True)
+            loss_rec = self._run_batch(x_batch,x_cond,record_loss = (counter % 100 == 0))
+
+            if loss_rec is not None:
+                self.cnf_losses.append(loss_rec)
+                #print(loss_rec)
+
+    def _train(self,max_epoch):
+        for epoch in tqdm(range(max_epoch)):
+            self._run_epoch(epoch)
+            if (epoch == max_epoch -1) and self.gpu_id == 0:
+                self._save_checkpoint()
+
+
+        plt.plot(self.cnf_losses)
+        plt.savefig(self.plotDir+"CNFLoss.png")
+
+
+    def _save_checkpoint(self):
+        print(self.cnf_losses)
+        PATH = "/raid/vigneshk/Models/CNF_checkpoint.pt"
+        torch.save({
+        "CNF_Model": self.CNFModel.module.state_dict(),
+        "CNF_Optim": self.optimizer.state_dict(),
+        },  PATH)
+
+        print(f"Training checkpoint saved at {PATH}")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+
+
+
 
 
  
