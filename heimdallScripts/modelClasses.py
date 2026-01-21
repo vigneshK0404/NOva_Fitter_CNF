@@ -217,11 +217,11 @@ class CNF_trainer():
             counter += 1
             x_batch = x_batch.to(self.gpu_id, non_blocking = True)
             x_cond = x_cond.to(self.gpu_id, non_blocking = True)
-            loss_rec = self._run_batch(x_batch,x_cond,record_loss = (counter % 100 == 0))
+            loss_rec = self._run_batch(x_batch,x_cond,record_loss = (counter % 1000 == 0))
 
             if loss_rec is not None:
                 self.cnf_losses.append(loss_rec)
-                #print(loss_rec)
+                print(loss_rec)
 
     def _train(self,max_epoch):
         for epoch in tqdm(range(max_epoch)):

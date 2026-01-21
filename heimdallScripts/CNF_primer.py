@@ -4,18 +4,26 @@ import torch
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 
+EPSILON = 1e-6
 
 dataPoisson_latent = torch.tensor(np.load("/raid/vigneshk/data/poissonEncoded.npy")).float()
+dataPoisson = torch.tensor(np.load("/raid/vigneshk/data/poissonData.npy")).float()
 thetaData = torch.tensor(np.load("/raid/vigneshk/data/theta_data.npy")).float()
+thetaStandard = torch.tensor(np.load("/raid/vigneshk/data/thetaData_standard.npy")).float()
 
 
-dataMap = trainingDataSet(thetaData,dataPoisson_latent)
+latent_mean = dataPoisson_latent.mean(dim=0)
+latent_stDev = dataPoisson_latent.std(dim=0, correction=0)
+
+dataPoisson_latent_Standard = (dataPoisson_latent - latent_mean) / latent_stDev + EPSILON
+
+dataMap = trainingDataSet(thetaData,dataPoisson_latent_Standard)
 
 dL = DataLoader(dataMap, batch_size = 1024, shuffle = True)
 
 
 n_features = int(thetaData.shape[1])
-context_features = int(dataPoisson_latent.shape[1])
+context_features = int(dataPoisson_latent_Standard.shape[1])
 n_layers = 10
 hidden_features = 16
 
@@ -31,10 +39,12 @@ CNFModel = CNF(n_features,
 CNFModel.train()
 CNFModel = CNFModel.to(device)
 
-optimizer = torch.optim.Adam(CNFModel.parameters(),lr=5e-5)
+optimizer = torch.optim.Adam(CNFModel.parameters(),lr=1e-3)
 
 
 for x_input,x_cond in dL:
+    print(x_input)
+    print(x_cond)
     x_input = x_input.to(device)
     x_cond = x_cond.to(device)
     optimizer.zero_grad()
