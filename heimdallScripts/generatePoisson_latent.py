@@ -16,7 +16,7 @@ print(device)
 
 encodeModel = autoEncoder(input_dim,middle_dim,output_dim)
 ckpt_AE  = torch.load("/raid/vigneshk/Models/AE_checkpoint.pt", map_location=device)
-encodeModel.load_state_dict(ckpt_AE)
+encodeModel.load_state_dict(ckpt_AE["AE_Model"])
 encodeModel.eval()
 encodeModel = encodeModel.to(device)
 
@@ -63,4 +63,4 @@ def sampleGen(encodeModel : autoEncoder, device : torch.device):
     plots(testP_CPU, testG, bins, address)
 
 
-sampleGen(encodeModel, device)
+latentGen(encodeModel, device, dataPoisson)

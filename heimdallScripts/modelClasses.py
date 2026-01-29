@@ -194,13 +194,16 @@ class CNF_trainer():
         #CNF HYPER-PARAMS TO CHANGE
 
         self.optimizer = torch.optim.Adam(self.CNFModel.parameters(), lr = 1e-3)
-        self.batch_size = batch_size
+        self.batch_size = batch_size 
 
     def _run_batch(self, x_input, x_cond,record_loss : bool):
         self.optimizer.zero_grad()
         nll = - self.CNFModel(x_input, context=x_cond)
         cnf_loss = nll.mean()
         cnf_loss.backward()
+    
+        torch.nn.utils.clip_grad_norm_(self.CNFModel.parameters(), max_norm = 1.0)
+
         self.optimizer.step()
 
         if record_loss:
@@ -212,9 +215,9 @@ class CNF_trainer():
     def _run_epoch(self,epoch):    
         print(f"[GPU{self.gpu_id}] Epoch {epoch} | Steps: {len(self.train_data)}")
         self.train_data.sampler.set_epoch(epoch)
-        counter = 0
-        for x_batch,x_cond in self.train_data:
-            counter += 1
+
+        for counter,dS in enumerate(self.train_data):
+            x_batch,x_cond = dS
             x_batch = x_batch.to(self.gpu_id, non_blocking = True)
             x_cond = x_cond.to(self.gpu_id, non_blocking = True)
             loss_rec = self._run_batch(x_batch,x_cond,record_loss = (counter % 1000 == 0))
@@ -228,11 +231,12 @@ class CNF_trainer():
             self._run_epoch(epoch)
             if (epoch == max_epoch -1) and self.gpu_id == 0:
                 self._save_checkpoint()
+                plt.plot(self.cnf_losses)
+                plt.savefig(self.plotDir+"CNFLoss.png")
+                plt.clf()
+                print(f"Saved CNF Loss Plot at {self.plotDir} CNFLOSS.png")
 
-
-        plt.plot(self.cnf_losses)
-        plt.savefig(self.plotDir+"CNFLoss.png")
-
+        
 
     def _save_checkpoint(self):
         print(self.cnf_losses)
@@ -253,6 +257,20 @@ class CNF_trainer():
 
 
 
+'''
+self.GradNorms = []
+for p in self.CNFModel.parameters():
+    pNorm = p.grad.norm().item()
+    self.GradNorms.append(pNorm)
+normTorch = torch.tensor(self.GradNorms)
+nanFlag = ~torch.isfinite(normTorch)
+print(f"idx : {nanFlag}")
+print(f"Non-Finites - {normTorch[nanFlag]}")
+print(normTorch.nanmean())
+plt.plot(self.GradNorms)
+plt.savefig(self.plotDir+"CNFNorms.png")
+plt.clf()
+'''
 
 
 

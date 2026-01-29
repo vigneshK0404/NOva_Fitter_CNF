@@ -60,7 +60,7 @@ def valCNF():
 
     encodeModel = autoEncoder(20,32,10)
     ckpt_AE  = torch.load("/raid/vigneshk/Models/AE_checkpoint.pt", map_location=device)
-    encodeModel.load_state_dict(ckpt_AE)
+    encodeModel.load_state_dict(ckpt_AE["AE_Model"])
     encodeModel.eval()
     encodeModel = encodeModel.to(device)
 

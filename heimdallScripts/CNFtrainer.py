@@ -29,7 +29,7 @@ def prepare_Model():
     hidden_features = 16
     contextF = int(dataPoisson_latent_Standard.shape[1])
 
-    print(f"data:{n_features}, context:{contextF}")
+    #print(f"data:{n_features}, context:{contextF}")
     return CNF(n_features,
                context_features= contextF,
                n_layers=n_layers,
@@ -54,14 +54,15 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int):
     train_data = prepare_dataloader(dataset, batch_size)
     trainer = CNF_trainer(CNFmodel, train_data, rank, batch_size)
     trainer._train(total_epochs)
-    trainer._save_checkpoint()
+
+    torch.distributed.barrier() #makes sure all GPUs finish before next one starts
     destroy_process_group()
 
 
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()
     batch_size = 1024
-    total_epochs = 5
+    total_epochs = 7
     mp.spawn(main, args=(world_size, total_epochs, batch_size), nprocs=world_size)
 
 

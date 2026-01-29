@@ -15,9 +15,9 @@ thetaStandard = torch.tensor(np.load("/raid/vigneshk/data/thetaData_standard.npy
 latent_mean = dataPoisson_latent.mean(dim=0)
 latent_stDev = dataPoisson_latent.std(dim=0, correction=0)
 
-dataPoisson_latent_Standard = (dataPoisson_latent - latent_mean) / latent_stDev + EPSILON
+dataPoisson_latent_Standard = (dataPoisson_latent - latent_mean) / (latent_stDev + EPSILON)
 
-dataMap = trainingDataSet(thetaData,dataPoisson_latent_Standard)
+dataMap = trainingDataSet(thetaStandard,dataPoisson_latent_Standard)
 
 dL = DataLoader(dataMap, batch_size = 1024, shuffle = True)
 
@@ -42,9 +42,8 @@ CNFModel = CNFModel.to(device)
 optimizer = torch.optim.Adam(CNFModel.parameters(),lr=1e-3)
 
 
-for x_input,x_cond in dL:
-    print(x_input)
-    print(x_cond)
+for i,dS in enumerate(dL):
+    x_input,x_cond = dS
     x_input = x_input.to(device)
     x_cond = x_cond.to(device)
     optimizer.zero_grad()
@@ -55,6 +54,6 @@ for x_input,x_cond in dL:
     optimizer.step()
 
     print(cnf_loss.item())
-    break
-
+    if (i > 5):
+        break
 
