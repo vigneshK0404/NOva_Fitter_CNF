@@ -19,13 +19,13 @@ dataPoisson_latent_Standard = (dataPoisson_latent - latent_mean) / (latent_stDev
 
 dataMap = trainingDataSet(thetaStandard,dataPoisson_latent_Standard)
 
-dL = DataLoader(dataMap, batch_size = 1024, shuffle = True)
+dL = DataLoader(dataMap, batch_size = 512, shuffle = False) #RUN 512 and False
 
 
 n_features = int(thetaData.shape[1])
 context_features = int(dataPoisson_latent_Standard.shape[1])
-n_layers = 10
-hidden_features = 16
+n_layers = 5
+hidden_features = 20
 
 dnumber = 0
 device = torch.device(f"cuda:{dnumber}" if torch.cuda.is_available() else "cpu")

@@ -202,7 +202,7 @@ class CNF_trainer():
         cnf_loss = nll.mean()
         cnf_loss.backward()
     
-        torch.nn.utils.clip_grad_norm_(self.CNFModel.parameters(), max_norm = 1.0)
+        torch.nn.utils.clip_grad_norm_(self.CNFModel.parameters(),max_norm = 1.0)
 
         self.optimizer.step()
 

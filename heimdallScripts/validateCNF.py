@@ -3,6 +3,8 @@ from generateDataFuncs import generateTrainingData, plots, gauss
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+#from matplotlib.backends.backend_pdf import PdfPages
+from fpdf import FPDF
 
 
 def generatePoissonData(sampleNum,N1,mu1,sig1,N2,mu2,sig2):
@@ -23,18 +25,57 @@ def generatePoissonData(sampleNum,N1,mu1,sig1,N2,mu2,sig2):
 
 EPSILON = 1e-6
 
-def plotHist(data,ref_val,title,minVal,maxVal):
-  data = data[(data > minVal) & (data < maxVal)]
-  data_plot = data - ref_val
-  plt.hist(data_plot, edgecolor = "black")
-  plt.xlabel("relative_difference")
-  plt.ylabel("counts")
-  plt.title(title)
-  plt.savefig("/raid/vigneshk/plots/thetaPlots/" + title + ".png")
-  plt.clf()
+def plotHist(thetaDist, ref_vals, titles, minVals, maxVals):
+    iterations = thetaDist.shape[1]
+
+    imagePath_Base = "/raid/vigneshk/plots/thetaPlots/"
+
+    CNFn_layers = 2
+    CNF_layerW = 20
+    layerType = "Masked Autoregressive Transform"
+    GradClip = "True"
+    Epoch = 7
+    Batch_Size = 1024
+    Optim = "Adam"
+
+    AE_layerW = 32
+    AEn_layers = " Encode: 3 Decode: 3"
+    AE_type = "AutoEncoder"
+    AE_Optim = "Adam"
+
+
+    full_string = f"CNF \n\n Layer_Info:-{layerType}: N-{CNFn_layers} W-{CNF_layerW} \n Optim, GradClip:{Optim},{GradClip} \n Training:- Epoch:{Epoch}, Batch:{Batch_Size} \n\n AE \n\n Type:{AE_type},{Optim} \n Layers, hidden_width:{AEn_layers},{AE_layerW} \n"
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font('Arial', 'B', 16)
+    pdf.multi_cell(w=0,h=10,txt=full_string,border=1)
+    
+    #with PdfPages("/raid/vigneshk/plots/thetaPlots/ThetaPlots.pdf") as pdf:
+    for i in range(iterations):
+        data = thetaDist[:,i]
+        data = data[(data > minVals[i]) & (data < maxVals[i])]
+        data_plot = abs(data - ref_vals[i])*100/ref_vals[i]
+
+        imagePath = imagePath_Base + titles[i] + ".png"
+        pdf.add_page()
+
+        plt.figure()
+        plt.hist(data_plot, edgecolor = "black")
+        plt.xlabel("relative_difference %")
+        plt.ylabel("counts")
+        plt.title(titles[i])
+        plt.savefig(imagePath)
+        plt.close()
+
+        pdf.image(imagePath,x=10,y=60,w=200,h=170)
+    
+    pdf.output(imagePath_Base + "ThetaPlots.pdf","F")
+
+            
 
 def valCNF():
-    
+
     dnumber = 0
     device = torch.device(f"cuda:{dnumber}" if torch.cuda.is_available() else "cpu")
     print(device)
@@ -52,7 +93,12 @@ def valCNF():
     thetaStd = np.std(thetaData_unique,axis = 0)
 
 
-    CNFModel = CNF(6,10,10,16)
+    CNFModel = CNF(n_features=6,
+                   context_features=10,
+                   n_layers = 2,
+                   hidden_features = 20)
+
+
     ckpt_CNF  = torch.load("/raid/vigneshk/Models/CNF_checkpoint.pt", map_location=device)
     CNFModel.load_state_dict(ckpt_CNF["CNF_Model"])
     CNFModel.eval()
@@ -80,7 +126,7 @@ def valCNF():
     thetaDist = (sample_cut * thetaStd) + thetaMean
     cnfT = tD[0]
 
-    #print(tD)
+    #print(cnfT)
     #print(thetaDist)
 
     cnfTList = list(cnfT)
@@ -95,13 +141,7 @@ def valCNF():
     plots(dP1,gT1,rawBins,"/raid/vigneshk/plots/poissonGeneratedFromCNF.png")
     plots(dPreal,gTreal,rawBins,"/raid/vigneshk/plots/poissonReal.png")
 
-    N1_cnf = thetaDist[:,0]
-    mu1_cnf = thetaDist[:,1]
-    sig1_cnf = thetaDist[:,2]
-    N2_cnf = thetaDist[:,3]
-    mu2_cnf = thetaDist[:,4]
-    sig2_cnf = thetaDist[:,5]
-
+    
     minN1 = 50
     maxN1 = 100
 
@@ -120,14 +160,11 @@ def valCNF():
     minsig2 = 1
     maxsig2 = 3
 
+    titles = ["N1","mu1","sig1","N2","mu2","sig2"]
+    minVals = [minN1,minmu1,minsig1,minN2,minmu2,minsig2]
+    maxVals = [maxN1,maxmu1,maxsig1,maxN2,maxmu2,maxsig2]
 
-    plotHist(N1_cnf, cnfT[0],"N1",minN1,maxN1)
-    plotHist(mu1_cnf, cnfT[1],"mu1",minmu1,maxmu1)
-    plotHist(sig1_cnf, cnfT[2],"sig1",minsig1,maxsig1)
-    plotHist(N2_cnf, cnfT[3],"N2",minN2,maxN2)
-    plotHist(mu2_cnf, cnfT[4],"mu2",minmu2,maxmu2)
-    plotHist(sig2_cnf, cnfT[5],"sig2",minsig2,maxsig2)
-
+    plotHist(thetaDist,cnfT,titles,minVals,maxVals)
 
 
 

@@ -25,8 +25,8 @@ dataPoisson_latent_Standard = (dataPoisson_latent - latent_mean) / (latent_std +
 
 def prepare_Model():
     n_features = int(thetaStandard.shape[1])
-    n_layers = 10
-    hidden_features = 16
+    n_layers = 2
+    hidden_features = 20
     contextF = int(dataPoisson_latent_Standard.shape[1])
 
     #print(f"data:{n_features}, context:{contextF}")
@@ -61,7 +61,7 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int):
 
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()
-    batch_size = 1024
+    batch_size = 2046
     total_epochs = 7
     mp.spawn(main, args=(world_size, total_epochs, batch_size), nprocs=world_size)
 
