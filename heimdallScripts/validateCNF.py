@@ -44,7 +44,7 @@ def valCNF():
 
     CNFModel = CNF(n_features=6,
                    context_features=10,
-                   n_layers = 2,
+                   n_layers = 5,
                    hidden_features = 20)
 
 
@@ -61,9 +61,9 @@ def valCNF():
 
 
 
-    dP , tD, _ = generateTrainingData(1,100000)
+    dP , tD, _ = generateTrainingData(1,1000000)
     dP_ten = torch.tensor(dP).float()
-    batch_test = DataLoader(dP_ten,batch_size=10000)
+    batch_test = DataLoader(dP_ten,batch_size=100000)
 
     testData = []
 

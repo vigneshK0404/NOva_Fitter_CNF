@@ -25,7 +25,7 @@ dataPoisson_latent_Standard = (dataPoisson_latent - latent_mean) / (latent_std +
 
 def prepare_Model():
     n_features = int(thetaStandard.shape[1])
-    n_layers = 2
+    n_layers = 5
     hidden_features = 20
     contextF = int(dataPoisson_latent_Standard.shape[1])
 

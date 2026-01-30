@@ -167,7 +167,13 @@ class CNF(torch.nn.Module):
             transforms.append(MaskedAffineAutoregressiveTransform(features=n_features, 
                                                                   hidden_features=hidden_features, 
                                                                   context_features=context_features)) #conditioned on compressed poissonData
-            transforms.append(ReversePermutation(features=n_features))
+            transforms.append(MaskedPiecewiseRationalQuadraticAutoregressiveTransform(features = n_features,
+                                                                                      hidden_features = hidden_features,
+                                                                                      context_features = context_features,
+                                                                                      num_bins=10,
+                                                                                      tails="linear",
+                                                                                      tail_bound=3.5)) 
+            #transforms.append(ReversePermutation(features=n_features))
 
         transform = CompositeTransform(transforms)
         self.flow = Flow(transform,base_dist)

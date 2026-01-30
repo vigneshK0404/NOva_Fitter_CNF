@@ -9,9 +9,9 @@ def plotHist(thetaDist, ref_vals, titles):
 
     imagePath_Base = "/raid/vigneshk/plots/thetaPlots/"
 
-    CNFn_layers = 2
+    CNFn_layers = 5
     CNF_layerW = 20
-    layerType = "Masked Autoregressive Transform"
+    layerType = "Masked Autoregressive Transform & Rational Quadratic Splines"
     GradClip = "True"
     Epoch = 7
     Batch_Size = 1024
@@ -34,7 +34,7 @@ def plotHist(thetaDist, ref_vals, titles):
     for i in range(iterations):
         data = thetaDist[:,i]
         #data = data[(data > minVals[i]) & (data < maxVals[i])]
-        data_plot = abs(data - ref_vals[i])*100/ref_vals[i]
+        data_plot = (data - ref_vals[i])*100/ref_vals[i]
 
         imagePath = imagePath_Base + titles[i] + ".png"
         pdf.add_page()
