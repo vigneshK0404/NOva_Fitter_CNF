@@ -4,26 +4,18 @@ import numpy as np
 
 
 
-def plotHist(thetaDist, ref_vals, titles):
+def plotHist(thetaDist : np.array , ref_vals : np.array , titles : list, hyper_params : dict):
     iterations = thetaDist.shape[1]
 
-    imagePath_Base = "/raid/vigneshk/plots/thetaPlots/"
+    imagePath_Base = "/raid/vigneshk/Models/"
 
-    CNFn_layers = 5
-    CNF_layerW = 20
-    layerType = "Masked Autoregressive Transform & Rational Quadratic Splines"
-    GradClip = "True"
-    Epoch = 7
-    Batch_Size = 1024
-    Optim = "Adam"
-
-    AE_layerW = 32
-    AEn_layers = " Encode: 3 Decode: 3"
-    AE_type = "AutoEncoder"
-    AE_Optim = "Adam"
-
-
-    full_string = f"CNF \n\n Layer_Info:-{layerType}: N-{CNFn_layers} W-{CNF_layerW} \n Optim, GradClip:{Optim},{GradClip} \n Training:- Epoch:{Epoch}, Batch:{Batch_Size} \n\n AE \n\n Type:{AE_type},{Optim} \n Layers, hidden_width:{AEn_layers},{AE_layerW} \n"
+    full_string = str()
+   
+    for key,value in hyper_params.items():
+        full_string += key
+        full_string += " : "
+        full_string += str(value)
+        full_string += "\n"
 
     pdf = FPDF()
     pdf.add_page()
@@ -35,6 +27,8 @@ def plotHist(thetaDist, ref_vals, titles):
         data = thetaDist[:,i]
         #data = data[(data > minVals[i]) & (data < maxVals[i])]
         data_plot = (data - ref_vals[i])*100/ref_vals[i]
+        outOfRange = data_plot[(data_plot > 100) & (data_plot < -100)]
+        print(f"{titles[i]} Out of Range : {outOfRange}")
 
         imagePath = imagePath_Base + titles[i] + ".png"
         pdf.add_page()

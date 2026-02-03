@@ -1,6 +1,5 @@
 #base stack
 import torch
-import torchinfo
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
@@ -156,26 +155,30 @@ class CNF(torch.nn.Module):
                  n_features : int, #Central data features 6 Ni,mui,sigi (i1,2)
                  context_features : int, #compressed Poisson features
                  n_layers : int,
-                 hidden_features : int
+                 hidden_features : int,
+                 num_bins : int,
+                 tails : str,
+                 tail_bound : int
                  ):
         super().__init__()
-
+            
         base_dist = StandardNormal(shape=[n_features])
-        transforms = []
+        self.transforms = []
 
         for i in range(n_layers):
-            transforms.append(MaskedAffineAutoregressiveTransform(features=n_features, 
+            self.transforms.append(ReversePermutation(features=n_features))
+            self.transforms.append(MaskedAffineAutoregressiveTransform(features=n_features, 
                                                                   hidden_features=hidden_features, 
                                                                   context_features=context_features)) #conditioned on compressed poissonData
-            transforms.append(MaskedPiecewiseRationalQuadraticAutoregressiveTransform(features = n_features,
+            self.transforms.append(MaskedPiecewiseRationalQuadraticAutoregressiveTransform(features = n_features,
                                                                                       hidden_features = hidden_features,
                                                                                       context_features = context_features,
-                                                                                      num_bins=10,
-                                                                                      tails="linear",
-                                                                                      tail_bound=3.5)) 
-            #transforms.append(ReversePermutation(features=n_features))
+                                                                                      num_bins = num_bins,   #10
+                                                                                      tails = tails, #linear
+                                                                                      tail_bound = tail_bound)) #3.5
 
-        transform = CompositeTransform(transforms)
+                   
+        transform = CompositeTransform(self.transforms)
         self.flow = Flow(transform,base_dist)
 
     def forward(self,x,context):
@@ -190,6 +193,7 @@ class CNF_trainer():
                  batch_size : int
                  ):
 
+        
         self.gpu_id = gpu_id
         self.CNFModel = CNFModel.to(gpu_id)
         self.train_data = train_data
@@ -199,6 +203,7 @@ class CNF_trainer():
 
         #CNF HYPER-PARAMS TO CHANGE
 
+        
         self.optimizer = torch.optim.Adam(self.CNFModel.parameters(), lr = 1e-3)
         self.batch_size = batch_size 
 
@@ -232,7 +237,7 @@ class CNF_trainer():
                 self.cnf_losses.append(loss_rec)
                 print(loss_rec)
 
-    def _train(self,max_epoch):
+    def _train(self,max_epoch): 
         for epoch in tqdm(range(max_epoch)):
             self._run_epoch(epoch)
             if (epoch == max_epoch -1) and self.gpu_id == 0:

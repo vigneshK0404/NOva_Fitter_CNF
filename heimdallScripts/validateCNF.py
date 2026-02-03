@@ -6,6 +6,8 @@ import torch
 import numpy as np
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+import torchinfo
+import pickle
 
 
 EPSILON = 1e-6
@@ -27,6 +29,11 @@ def generatePoissonData(sampleNum,N1,mu1,sig1,N2,mu2,sig2):
 
 def valCNF():
 
+    hyper_params = dict()
+
+    with open('/raid/vigneshk/Models/hP.bin', 'rb') as handle:
+        hyper_params = pickle.load(handle)
+
     dnumber = 0
     device = torch.device(f"cuda:{dnumber}" if torch.cuda.is_available() else "cpu")
     print(device) 
@@ -45,7 +52,10 @@ def valCNF():
     CNFModel = CNF(n_features=6,
                    context_features=10,
                    n_layers = 5,
-                   hidden_features = 20)
+                   hidden_features = 20,
+                   num_bins = 10,
+                   tails = "linear",
+                   tail_bound = 3.5)
 
 
     ckpt_CNF  = torch.load("/raid/vigneshk/Models/CNF_checkpoint.pt", map_location=device)
@@ -61,9 +71,9 @@ def valCNF():
 
 
 
-    dP , tD, _ = generateTrainingData(1,1000000)
+    dP , tD, _ = generateTrainingData(1,10000)
     dP_ten = torch.tensor(dP).float()
-    batch_test = DataLoader(dP_ten,batch_size=100000)
+    batch_test = DataLoader(dP_ten,batch_size=1000)
 
     testData = []
 
@@ -93,17 +103,14 @@ def valCNF():
 
     plots(dP1,gT1,rawBins,"/raid/vigneshk/plots/poissonGeneratedFromCNF.png")
     plots(dPreal,gTreal,rawBins,"/raid/vigneshk/plots/poissonReal.png")
-
-    
    
 
     titles = ["N1","mu1","sig1","N2","mu2","sig2"]
     
-    plotHist(thetaDist,cnfT,titles)
+    plotHist(thetaDist,cnfT,titles,hyper_params)
 
-    
 
-valCNF()  
+valCNF()
 
 
 """
