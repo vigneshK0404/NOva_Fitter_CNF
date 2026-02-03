@@ -27,13 +27,10 @@ def generatePoissonData(sampleNum,N1,mu1,sig1,N2,mu2,sig2):
   return dataPoisson, gaussSample
             
 
-def valCNF():
+def valCNF(base_PATH : str):
 
     hyper_params = dict()
-
-    with open('/raid/vigneshk/Models/hP.bin', 'rb') as handle:
-        hyper_params = pickle.load(handle)
-
+    
     dnumber = 0
     device = torch.device(f"cuda:{dnumber}" if torch.cuda.is_available() else "cpu")
     print(device) 
@@ -58,7 +55,7 @@ def valCNF():
                    tail_bound = 3.5)
 
 
-    ckpt_CNF  = torch.load("/raid/vigneshk/Models/CNF_checkpoint.pt", map_location=device)
+    ckpt_CNF  = torch.load(base_PATH + "CNF_checkpoint.pt", map_location=device)
     CNFModel.load_state_dict(ckpt_CNF["CNF_Model"])
     CNFModel.eval()
     CNFModel = CNFModel.to(device)
@@ -100,18 +97,17 @@ def valCNF():
 
     rawBins = np.array(list(range(20)))
    
+    
 
-    plots(dP1,gT1,rawBins,"/raid/vigneshk/plots/poissonGeneratedFromCNF.png")
-    plots(dPreal,gTreal,rawBins,"/raid/vigneshk/plots/poissonReal.png")
+    plots(dP1,gT1,rawBins,base_PATH+"poissonGeneratedFromCNF.png")
+    plots(dPreal,gTreal,rawBins,base_PATH+"poissonReal.png")
    
 
     titles = ["N1","mu1","sig1","N2","mu2","sig2"]
     
-    plotHist(thetaDist,cnfT,titles,hyper_params)
+    plotHist(thetaDist,cnfT,titles,base_PATH)
 
-
-valCNF()
-
+#valCNF("/raid/vigneshk/Models/CNF_test/")
 
 """
 minN1 = 50

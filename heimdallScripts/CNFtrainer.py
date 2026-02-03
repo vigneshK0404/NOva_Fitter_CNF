@@ -7,8 +7,10 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 import os
+import sys
 import torchinfo
 import pickle
+from pathlib import Path
 
 from validateCNF import valCNF
 
@@ -77,9 +79,8 @@ def prepare_dataloader(dataset: Dataset, batch_size: int):
         sampler=DistributedSampler(dataset, shuffle = False)
     )
 
-def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hyper_params : dict):
+def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hyper_params : dict, base_PATH : str):
     hyper_params = dict(base_hyper_params)
-
     ddp_setup(rank, world_size)
     CNFmodel = prepare_Model(rank, hyper_params)
     CNFmodel = CNFmodel.train()
@@ -89,12 +90,14 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hy
 
     if rank == 0:
         hyper_params["Optimizer"] = str(trainer.optimizer)
-        print(f"main : {hyper_params}")
+        PATH = base_PATH + "hP.bin" 
+        #print(f"main : {hyper_params}")
 
-        with open('/raid/vigneshk/Models/hP.bin', 'wb') as handle:
+
+        with open(PATH, 'wb') as handle:
             pickle.dump(hyper_params, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    trainer._train(total_epochs)
+    trainer._train(total_epochs,base_PATH)
     torch.distributed.barrier() #makes sure all GPUs finish before next one starts
     destroy_process_group()
 
@@ -102,7 +105,14 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hy
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()
     batch_size = 4096
-    total_epochs = 1 
+    total_epochs = 5
+
+    args = sys.argv
+    runVal = args[1]
+    CNFName = args[2]
+
+    PATH = f"/raid/vigneshk/Models/{CNFName}/"
+    Path(PATH).mkdir(parents=True, exist_ok=True)
 
     CNF_hyperParams = {}
 
@@ -112,9 +122,13 @@ if __name__ == "__main__":
 
     print(f"Before : {CNF_hyperParams}")
     
-    mp.spawn(main, args=(world_size, total_epochs, batch_size, CNF_hyperParams), nprocs=world_size) 
-
-    valCNF()
+    mp.spawn(main, args=(world_size, total_epochs, batch_size, CNF_hyperParams, PATH), nprocs=world_size) 
+    
+    print("Finished")
+    
+    if runVal == "True" :
+        print(runVal)
+        valCNF(PATH)
 
 
 

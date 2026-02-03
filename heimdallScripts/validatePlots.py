@@ -1,13 +1,18 @@
 from fpdf import FPDF
 import matplotlib.pyplot as plt
 import numpy as np
+import pickle
 
 
 
-def plotHist(thetaDist : np.array , ref_vals : np.array , titles : list, hyper_params : dict):
+def plotHist(thetaDist : np.array , ref_vals : np.array , titles : list, base_PATH : str):
     iterations = thetaDist.shape[1]
 
-    imagePath_Base = "/raid/vigneshk/Models/"
+    
+    PATH = base_PATH + "hP.bin"
+    with open(PATH, 'rb') as handle:
+        hyper_params = pickle.load(handle)
+
 
     full_string = str()
    
@@ -26,15 +31,21 @@ def plotHist(thetaDist : np.array , ref_vals : np.array , titles : list, hyper_p
     for i in range(iterations):
         data = thetaDist[:,i]
         #data = data[(data > minVals[i]) & (data < maxVals[i])]
-        data_plot = (data - ref_vals[i])*100/ref_vals[i]
+        data_plot = (data - ref_vals[i])*100/ref_vals[i] 
         outOfRange = data_plot[(data_plot > 100) & (data_plot < -100)]
         print(f"{titles[i]} Out of Range : {outOfRange}")
 
-        imagePath = imagePath_Base + titles[i] + ".png"
+        imagePath = base_PATH + titles[i] + ".png"
         pdf.add_page()
 
         plt.figure()
-        plt.hist(data_plot, edgecolor = "black")
+        _, bins, _ = plt.hist(data_plot, edgecolor = "black")
+        bin_diffs = np.diff(bins)
+        if np.all(bin_diffs - bin_diffs[0]) == 0:
+            print(f"uniform binning : {titles[i]} - {bin_diffs[0]}")
+        else :
+            print(f"non-uniform binnins : {titles[i]} - {bin_diffs}")
+
         plt.xlabel("relative_difference %")
         plt.ylabel("counts")
         plt.title(titles[i])
@@ -42,7 +53,7 @@ def plotHist(thetaDist : np.array , ref_vals : np.array , titles : list, hyper_p
         plt.close()
         pdf.image(imagePath,x=10,y=60,w=200,h=170)
     
-    pdf.output(imagePath_Base + "ThetaPlots.pdf","F")
+    pdf.output(base_PATH + "ThetaPlots.pdf","F")
 
 
 

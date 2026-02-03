@@ -46,7 +46,7 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int):
 
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()
-    batch_size = 4096
-    total_epochs = 10
+    batch_size = 1024
+    total_epochs = 15
     mp.spawn(main, args=(world_size, total_epochs, batch_size), nprocs=world_size)
 

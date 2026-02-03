@@ -115,7 +115,7 @@ class AE_trainer:
                 print(loss_rec)
 
 
-    def _train(self,max_epoch):
+    def _train(self,max_epoch : int):
         for epoch in tqdm(range(max_epoch)):
             self._run_epoch(epoch)
             if (epoch == max_epoch -1) and self.gpu_id == 0:
@@ -126,12 +126,11 @@ class AE_trainer:
         plt.savefig(self.plotDir+"AELoss.png")
 
     def _save_checkpoint(self):
-        print(self.r_losses)
-        PATH = "/raid/vigneshk/Models/AE_checkpoint.pt"
+        PATH = "/raid/vigneshk/Models/"
         torch.save({
         "AE_Model": self.AEModel.module.state_dict(),
         "AE_Optim": self.optimizer.state_dict(),
-        },  PATH)
+        },  PATH + "AE_checkpoint.pt")
 
         print(f"Training checkpoint saved at {PATH}")
 
@@ -237,11 +236,11 @@ class CNF_trainer():
                 self.cnf_losses.append(loss_rec)
                 print(loss_rec)
 
-    def _train(self,max_epoch): 
+    def _train(self,max_epoch : int, PATH : str): 
         for epoch in tqdm(range(max_epoch)):
             self._run_epoch(epoch)
             if (epoch == max_epoch -1) and self.gpu_id == 0:
-                self._save_checkpoint()
+                self._save_checkpoint(PATH)
                 plt.plot(self.cnf_losses)
                 plt.savefig(self.plotDir+"CNFLoss.png")
                 plt.clf()
@@ -249,13 +248,11 @@ class CNF_trainer():
 
         
 
-    def _save_checkpoint(self):
-        print(self.cnf_losses)
-        PATH = "/raid/vigneshk/Models/CNF_checkpoint.pt"
+    def _save_checkpoint(self, PATH : str):
         torch.save({
         "CNF_Model": self.CNFModel.module.state_dict(),
         "CNF_Optim": self.optimizer.state_dict(),
-        },  PATH)
+        },  PATH + "CNF_checkpoint.pt")
 
         print(f"Training checkpoint saved at {PATH}")
 
