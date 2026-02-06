@@ -43,7 +43,7 @@ def valCNF(base_PATH : str):
     thetaStd = np.load("/raid/vigneshk/data/thetaStd.npy")
 
 
-    CNFModel = CNF(n_features=3, #6
+    CNFModel = CNF(n_features=6, #6
                    context_features=10,
                    n_layers = 5,
                    hidden_features = 20,
