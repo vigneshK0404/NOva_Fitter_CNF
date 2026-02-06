@@ -12,20 +12,21 @@ import pickle
 
 EPSILON = 1e-6
 
-def generatePoissonData(sampleNum,N1,mu1,sig1,N2,mu2,sig2):
-  minX_center = 0.5
-  maxX_edge = 20.5
-  step = 1 # -> bin width
+def generatePoissonData(sampleNum,N1,mu1,sig1,N2,mu2,sig2): #N1,mu1,sig1
+    minX_center = 0.5
+    maxX_edge = 20.5
+    step = 1 # -> bin width
 
-  rawBins = np.arange(minX_center,maxX_edge,step=step)
-  
-  gaussSample = step * (gauss(N1,mu1,sig1,rawBins) + gauss(N2, mu2, sig2,rawBins))
-  
-  rng = np.random.default_rng()
-  dataPoisson = rng.poisson(lam=gaussSample,size=None)
+    rawBins = np.arange(minX_center,maxX_edge,step=step)
+      
+    gaussSample = step * (gauss(N1,mu1,sig1,rawBins) + gauss(N2, mu2, sig2,rawBins))
+    #gaussSample = step * (gauss(N2, mu2, sig2,rawBins))
+      
+    rng = np.random.default_rng()
+    dataPoisson = rng.poisson(lam=gaussSample,size=None)
 
-  return dataPoisson, gaussSample
-            
+    return dataPoisson, gaussSample
+                
 
 def valCNF(base_PATH : str):
 
@@ -35,18 +36,14 @@ def valCNF(base_PATH : str):
     device = torch.device(f"cuda:{dnumber}" if torch.cuda.is_available() else "cpu")
     print(device) 
 
-    dataPoisson_latent = torch.tensor(np.load("/raid/vigneshk/data/poissonEncoded.npy")).float()
-    latent_mean = dataPoisson_latent.mean(axis=0).to(device)
-    latent_std = dataPoisson_latent.std(axis=0, correction=0).to(device)
+    latent_mean = torch.tensor(np.load("/raid/vigneshk/data/latentMean.npy")).float().to(device)
+    latent_std = torch.tensor(np.load("/raid/vigneshk/data/latentStd.npy")).float().to(device) 
 
-    thetaData = np.load("/raid/vigneshk/data/theta_data.npy")
-    thetaData_unique = thetaData[::4096,:]
-
-    thetaMean = np.mean(thetaData_unique,axis=0)
-    thetaStd = np.std(thetaData_unique,axis = 0)
+    thetaMean = np.load("/raid/vigneshk/data/thetaMean.npy")
+    thetaStd = np.load("/raid/vigneshk/data/thetaStd.npy")
 
 
-    CNFModel = CNF(n_features=6,
+    CNFModel = CNF(n_features=3, #6
                    context_features=10,
                    n_layers = 5,
                    hidden_features = 20,
@@ -68,9 +65,9 @@ def valCNF(base_PATH : str):
 
 
 
-    dP , tD, _ = generateTrainingData(1,10000)
+    dP , tD, _ = generateTrainingData(1,1)
     dP_ten = torch.tensor(dP).float()
-    batch_test = DataLoader(dP_ten,batch_size=1000)
+    batch_test = DataLoader(dP_ten,batch_size=1)
 
     testData = []
 
@@ -79,7 +76,7 @@ def valCNF(base_PATH : str):
         x = x_batch.to(device)
         cnfP_en = encodeModel._encode(x)
         cnfP_en = (cnfP_en - latent_mean)/(latent_std + EPSILON)
-        samples = CNFModel.flow.sample(1,context=cnfP_en).cpu().numpy()
+        samples = CNFModel.flow.sample(10000,context=cnfP_en).cpu().numpy()
         sample_cut = samples.reshape(-1,samples.shape[-1])
         testData.append(sample_cut)
 
@@ -95,7 +92,7 @@ def valCNF(base_PATH : str):
     print(cnfT)
     print(thetaDist)
 
-    rawBins = np.array(list(range(20)))
+    rawBins = np.array(list(range(21)))
    
     
 
@@ -104,10 +101,11 @@ def valCNF(base_PATH : str):
    
 
     titles = ["N1","mu1","sig1","N2","mu2","sig2"]
+    #titles = ["N2","mu2","sig2"]
     
     plotHist(thetaDist,cnfT,titles,base_PATH)
 
-#valCNF("/raid/vigneshk/Models/CNF_test/")
+#valCNF("/raid/vigneshk/Models/CNF_uniModal/")
 
 """
 minN1 = 50

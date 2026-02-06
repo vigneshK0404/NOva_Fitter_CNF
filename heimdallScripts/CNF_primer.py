@@ -34,7 +34,10 @@ print(device)
 CNFModel = CNF(n_features,
                context_features = context_features, 
                n_layers = n_layers, 
-               hidden_features = hidden_features)
+               hidden_features = hidden_features,
+               num_bins = 10,
+               tails = "linear",
+               tail_bound = 3.5)
 
 CNFModel.train()
 CNFModel = CNFModel.to(device)

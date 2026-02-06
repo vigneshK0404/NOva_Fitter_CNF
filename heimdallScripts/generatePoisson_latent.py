@@ -39,8 +39,17 @@ def latentGen(encodeModel : autoEncoder, device : torch.device, dataPoisson : np
 
 
     pPATH = "/raid/vigneshk/data/poissonEncoded"
+    meanPath = "/raid/vigneshk/data/latentMean"
+    stdPath = "/raid/vigneshk/data/latentStd"
+
     p_latentData = np.concatenate(p_latent_list,axis=0)
+    latent_mean = np.mean(p_latentData, axis=0)
+    latent_std = np.std(p_latentData, axis=0, ddof=0)
+
     np.save(pPATH,p_latentData)
+    np.save(meanPath,latent_mean)
+    np.save(stdPath,latent_std)
+
     print(f"Saved latentData of shape : {p_latentData.shape} at {pPATH}")
 
 
@@ -64,3 +73,4 @@ def sampleGen(encodeModel : autoEncoder, device : torch.device):
 
 
 latentGen(encodeModel, device, dataPoisson)
+#sampleGen(encodeModel, device)

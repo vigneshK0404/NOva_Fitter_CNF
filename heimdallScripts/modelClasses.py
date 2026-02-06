@@ -157,7 +157,7 @@ class CNF(torch.nn.Module):
                  hidden_features : int,
                  num_bins : int,
                  tails : str,
-                 tail_bound : int
+                 tail_bound : float
                  ):
         super().__init__()
             
@@ -203,7 +203,7 @@ class CNF_trainer():
         #CNF HYPER-PARAMS TO CHANGE
 
         
-        self.optimizer = torch.optim.Adam(self.CNFModel.parameters(), lr = 1e-3)
+        self.optimizer = torch.optim.Adam(self.CNFModel.parameters(), lr = 3e-4)
         self.batch_size = batch_size 
 
     def _run_batch(self, x_input, x_cond,record_loss : bool):

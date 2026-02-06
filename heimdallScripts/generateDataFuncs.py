@@ -40,6 +40,7 @@ def generatePrior(sampleSize):
     sig2 = np.random.uniform(minsig2,maxsig2,sampleSize)
 
     return N1,mu1,sig1,N2,mu2,sig2
+    #return N2,mu2,sig2
 
 def generateTrainingData(uniqueNum, sampleNum):
   minX_center = 0.5
@@ -49,8 +50,10 @@ def generateTrainingData(uniqueNum, sampleNum):
   rawBins = np.arange(minX_center,maxX_edge,step=step)
   genP = generatePrior(uniqueNum)
   N1,mu1,sig1,N2,mu2,sig2 = genP
+  #N2,mu2,sig2 = genP
 
-  gaussSample = step * (gauss(N1,mu1,sig1,rawBins) + gauss(N2, mu2, sig2,rawBins))
+  gaussSample = step * (gauss(N2, mu2, sig2,rawBins) + gauss(N1,mu1,sig1,rawBins))
+  #gaussSample = step * (gauss(N2, mu2, sig2,rawBins))
   fullGaussMatrix = np.repeat(gaussSample,repeats=sampleNum,axis=0)
 
   thetaData = np.column_stack(genP)
@@ -64,11 +67,32 @@ def generateTrainingData(uniqueNum, sampleNum):
 
 
 def plots(dP, fG, binEdges, address):
-  plt.plot(binEdges[1:], fG.flatten()[:-1])
-  plt.hist(binEdges[:-1], binEdges, weights=fG.flatten()[:-1],
-           edgecolor='black', label='gauss')
-  plt.hist(binEdges[:-1], binEdges, weights=dP.flatten()[:-1],edgecolor='black', label='poisson')
-  plt.legend()
-  plt.savefig(address)
-  plt.clf()
+    dP = dP.flatten()
+    fG = fG.flatten()
+
+    bin_centers = 0.5 * (binEdges[:-1] + binEdges[1:])
+
+    plt.hist(
+        bin_centers,
+        bins=binEdges,
+        weights=fG,
+        edgecolor='black',
+        alpha=0.6,
+        label='gauss'
+    )
+
+    plt.hist(
+        bin_centers,
+        bins=binEdges,
+        weights=dP,
+        edgecolor='black',
+        alpha=0.6,
+        label='poisson'
+    )
+
+    plt.legend()
+    plt.savefig(address)
+    plt.clf()
+
+
 

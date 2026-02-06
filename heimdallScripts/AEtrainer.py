@@ -39,8 +39,7 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int):
     dataset = torch.tensor(dataPoisson).float()
     train_data = prepare_dataloader(dataset, batch_size)
     trainer = AE_trainer(AEmodel, train_data, rank, batch_size)
-    trainer._train(total_epochs)
-    trainer._save_checkpoint()
+    trainer._train(total_epochs) 
     destroy_process_group()
 
 

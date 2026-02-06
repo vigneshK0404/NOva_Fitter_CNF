@@ -32,7 +32,7 @@ def plotHist(thetaDist : np.array , ref_vals : np.array , titles : list, base_PA
         data = thetaDist[:,i]
         #data = data[(data > minVals[i]) & (data < maxVals[i])]
         data_plot = (data - ref_vals[i])*100/ref_vals[i] 
-        outOfRange = data_plot[(data_plot > 100) & (data_plot < -100)]
+        outOfRange = data_plot[(data_plot > 100) | (data_plot < -100)]
         print(f"{titles[i]} Out of Range : {outOfRange}")
 
         imagePath = base_PATH + titles[i] + ".png"
@@ -41,7 +41,7 @@ def plotHist(thetaDist : np.array , ref_vals : np.array , titles : list, base_PA
         plt.figure()
         _, bins, _ = plt.hist(data_plot, edgecolor = "black")
         bin_diffs = np.diff(bins)
-        if np.all(bin_diffs - bin_diffs[0]) == 0:
+        if np.all(bin_diffs - bin_diffs[0]) == 0 :
             print(f"uniform binning : {titles[i]} - {bin_diffs[0]}")
         else :
             print(f"non-uniform binnins : {titles[i]} - {bin_diffs}")

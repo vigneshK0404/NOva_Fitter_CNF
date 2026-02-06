@@ -17,13 +17,13 @@ from validateCNF import valCNF
 
 EPSILON = 1e-6
 
-
-#thetaData = torch.tensor(np.load("/raid/vigneshk/data/theta_data.npy")).float()
 dataPoisson_latent = torch.tensor(np.load("/raid/vigneshk/data/poissonEncoded.npy")).float()
 thetaStandard = torch.tensor(np.load("/raid/vigneshk/data/thetaData_standard.npy")).float()
 
-latent_mean = dataPoisson_latent.mean(axis=0)
-latent_std = dataPoisson_latent.std(axis=0, correction=0)
+
+latent_mean = torch.tensor(np.load("/raid/vigneshk/data/latentMean.npy")).float()
+latent_std = torch.tensor(np.load("/raid/vigneshk/data/latentStd.npy")).float()
+
 dataPoisson_latent_Standard = (dataPoisson_latent - latent_mean) / (latent_std + EPSILON)
 
 def prepare_Model(rank : int, hyper_params : dict):
@@ -76,7 +76,7 @@ def prepare_dataloader(dataset: Dataset, batch_size: int):
         batch_size=batch_size,
         pin_memory=True,
         shuffle=False,
-        sampler=DistributedSampler(dataset, shuffle = False)
+        sampler=DistributedSampler(dataset, shuffle = True)
     )
 
 def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hyper_params : dict, base_PATH : str):
@@ -104,8 +104,8 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hy
 
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()
-    batch_size = 4096
-    total_epochs = 5
+    batch_size = 1024
+    total_epochs = 7
 
     args = sys.argv
     runVal = args[1]
