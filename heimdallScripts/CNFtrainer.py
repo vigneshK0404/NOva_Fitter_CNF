@@ -20,6 +20,10 @@ EPSILON = 1e-6
 dataPoisson_latent = torch.tensor(np.load("/raid/vigneshk/data/poissonEncoded.npy")).float()
 thetaStandard = torch.tensor(np.load("/raid/vigneshk/data/thetaData_standard.npy")).float()
 
+dataPoisson = np.load("/raid/vigneshk/data/poissonData.npy")
+dataPoisson_scaled_AT = 2 * np.sqrt(dataPoisson + 3/8)
+dataPoisson_AT = torch.tensor(dataPoisson_scaled_AT).float()
+
 
 latent_mean = torch.tensor(np.load("/raid/vigneshk/data/latentMean.npy")).float()
 latent_std = torch.tensor(np.load("/raid/vigneshk/data/latentStd.npy")).float()
@@ -30,8 +34,8 @@ def prepare_Model(rank : int, hyper_params : dict):
     n_features = int(thetaStandard.shape[1])
     n_layers = 5
     hidden_features = 20
-    contextF = int(dataPoisson_latent_Standard.shape[1])
-    num_bins = 10
+    contextF = int(dataPoisson_AT.shape[1]) #TODO change hidden_dim back
+    num_bins = 16
     tails = "linear"
     tail_bound = 3.5
 
@@ -84,7 +88,7 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hy
     ddp_setup(rank, world_size)
     CNFmodel = prepare_Model(rank, hyper_params)
     CNFmodel = CNFmodel.train()
-    dataset = trainingDataSet(thetaStandard,dataPoisson_latent_Standard)
+    dataset = trainingDataSet(thetaStandard,dataPoisson_AT) #TODO changing latent to regular here
     train_data = prepare_dataloader(dataset, batch_size)
     trainer = CNF_trainer(CNFmodel, train_data, rank, batch_size)  
 

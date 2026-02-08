@@ -6,6 +6,12 @@ import pickle
 
 
 def plotHist(thetaDist : np.array , ref_vals : np.array , titles : list, base_PATH : str):
+
+    thetaDistError = (thetaDist - ref_vals)*100/ref_vals
+    
+    thetaErrorSums = np.sum(thetaDistError,axis=1)
+    worstTheta = thetaDist[np.argmax(thetaErrorSums)]
+
     iterations = thetaDist.shape[1]
 
     
@@ -27,11 +33,8 @@ def plotHist(thetaDist : np.array , ref_vals : np.array , titles : list, base_PA
     pdf.set_font('Arial', 'B', 16)
     pdf.multi_cell(w=0,h=10,txt=full_string,border=1)
     
-    #with PdfPages("/raid/vigneshk/plots/thetaPlots/ThetaPlots.pdf") as pdf:
     for i in range(iterations):
-        data = thetaDist[:,i]
-        #data = data[(data > minVals[i]) & (data < maxVals[i])]
-        data_plot = (data - ref_vals[i])*100/ref_vals[i] 
+        data_plot = thetaDistError[:,i]
         outOfRange = data_plot[(data_plot > 100) | (data_plot < -100)]
         print(f"{titles[i]} Out of Range : {outOfRange}")
 
@@ -54,6 +57,7 @@ def plotHist(thetaDist : np.array , ref_vals : np.array , titles : list, base_PA
         pdf.image(imagePath,x=10,y=60,w=200,h=170)
     
     pdf.output(base_PATH + "ThetaPlots.pdf","F")
+    return worstTheta
 
 
 

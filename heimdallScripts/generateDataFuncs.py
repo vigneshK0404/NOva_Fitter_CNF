@@ -94,5 +94,38 @@ def plots(dP, fG, binEdges, address):
     plt.savefig(address)
     plt.clf()
 
+def Compare_Theta(theta_gen, fG, binEdges, address):
+    theta_gen = theta_gen.flatten()
+    fG = fG.flatten()
+
+    print(theta_gen.shape)
+    print(fG.shape)
+    print(len(binEdges))
+
+    bin_centers = 0.5 * (binEdges[:-1] + binEdges[1:])
+
+    plt.hist(
+        bin_centers,
+        bins=binEdges,
+        weights=fG,
+        edgecolor='black',
+        alpha=0.6,
+        label='Theta_real'
+    )
+
+    plt.hist(
+        bin_centers,
+        bins=binEdges,
+        weights=theta_gen,
+        edgecolor='black',
+        alpha=0.6,
+        label='Theta_gen'
+    )
+
+    plt.legend()
+    plt.savefig(address)
+    plt.clf()
+
+
 
 

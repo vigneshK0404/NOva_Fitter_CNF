@@ -26,6 +26,7 @@ n_features = int(thetaData.shape[1])
 context_features = int(dataPoisson_latent_Standard.shape[1])
 n_layers = 5
 hidden_features = 20
+tail_bound = 3.5
 
 dnumber = 0
 device = torch.device(f"cuda:{dnumber}" if torch.cuda.is_available() else "cpu")
@@ -35,14 +36,18 @@ CNFModel = CNF(n_features,
                context_features = context_features, 
                n_layers = n_layers, 
                hidden_features = hidden_features,
-               num_bins = 10,
+               num_bins = 16,
                tails = "linear",
-               tail_bound = 3.5)
+               tail_bound = tail_bound)
 
 CNFModel.train()
 CNFModel = CNFModel.to(device)
 
 optimizer = torch.optim.Adam(CNFModel.parameters(),lr=1e-3)
+
+
+thetaStandard_check = thetaStandard[np.abs(thetaStandard) >= tail_bound]
+print(thetaStandard_check)
 
 
 for i,dS in enumerate(dL):
@@ -59,4 +64,3 @@ for i,dS in enumerate(dL):
     print(cnf_loss.item())
     if (i > 5):
         break
-
