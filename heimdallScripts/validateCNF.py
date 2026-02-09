@@ -38,6 +38,9 @@ def valCNF(base_PATH : str):
     latent_mean = torch.tensor(np.load("/raid/vigneshk/data/latentMean.npy")).float().to(device)
     latent_std = torch.tensor(np.load("/raid/vigneshk/data/latentStd.npy")).float().to(device) 
 
+    dP_scaled_mean = np.load("/raid/vigneshk/data/dP_scaled_mean.npy")
+    dP_scaled_std = np.load("/raid/vigneshk/data/dP_scaled_std.npy")
+
     thetaMean = np.load("/raid/vigneshk/data/thetaMean.npy")
     thetaStd = np.load("/raid/vigneshk/data/thetaStd.npy")
 
@@ -69,6 +72,8 @@ def valCNF(base_PATH : str):
 
     #SCALING
     dP_scaled_AT = 2 * np.sqrt(dP + 3/8)
+    dP_scaled_AT = (dP_scaled_AT - dP_scaled_mean) / (dP_scaled_std + EPSILON)
+
 
     dP_ten = torch.tensor(dP_scaled_AT).float()
     batch_test = DataLoader(dP_ten,batch_size=1000)
@@ -80,7 +85,7 @@ def valCNF(base_PATH : str):
         x = x_batch.to(device)
         #cnfP_en = encodeModel._encode(x)
         #cnfP_en = (cnfP_en - latent_mean)/(latent_std + EPSILON)
-        samples = CNFModel.flow.sample(100,context=x).cpu().numpy() #TODO changed the context to dP here change it back to cnfP_en
+        samples = CNFModel.flow.sample(1000,context=x).cpu().numpy() #TODO changed the context to dP here change it back to cnfP_en
         sample_cut = samples.reshape(-1,samples.shape[-1])
         testData.append(sample_cut)
 
@@ -111,7 +116,7 @@ def valCNF(base_PATH : str):
 
 
 
-valCNF("/raid/vigneshk/Models/CNF_NoAE_ScaledPoisson/")
+valCNF("/raid/vigneshk/Models/CNF_NoAE_StandardizedPoisson/")
 
 """
 minN1 = 50

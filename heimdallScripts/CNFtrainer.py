@@ -22,8 +22,16 @@ thetaStandard = torch.tensor(np.load("/raid/vigneshk/data/thetaData_standard.npy
 
 dataPoisson = np.load("/raid/vigneshk/data/poissonData.npy")
 dataPoisson_scaled_AT = 2 * np.sqrt(dataPoisson + 3/8)
-dataPoisson_AT = torch.tensor(dataPoisson_scaled_AT).float()
 
+dP_scaled_mean = np.mean(dataPoisson_scaled_AT , axis = 0)
+
+dP_scaled_std = np.std(dataPoisson_scaled_AT, axis=0, ddof=0)
+dataPoisson_scaled_AT = (dataPoisson_scaled_AT - dP_scaled_mean) / (dP_scaled_std + EPSILON)
+
+np.save("/raid/vigneshk/data/dP_scaled_mean",dP_scaled_mean)
+np.save("/raid/vigneshk/data/dP_scaled_std",dP_scaled_std)
+
+dataPoisson_AT = torch.tensor(dataPoisson_scaled_AT).float()
 
 latent_mean = torch.tensor(np.load("/raid/vigneshk/data/latentMean.npy")).float()
 latent_std = torch.tensor(np.load("/raid/vigneshk/data/latentStd.npy")).float()
