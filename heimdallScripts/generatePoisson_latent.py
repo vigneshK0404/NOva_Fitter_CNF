@@ -5,10 +5,10 @@ import torch
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 
-dataPoisson = np.load("/raid/vigneshk/data/poissonData.npy")
-input_dim = int(dataPoisson.shape[1])
-middle_dim = 32
-output_dim = int(input_dim / 2)
+dataPoisson_scaled = np.load("/raid/vigneshk/data/dP_scaled.npy")
+input_dim = int(dataPoisson_scaled.shape[1])
+middle_dim = int(input_dim / 2)
+output_dim = int(input_dim / 3)
 
 dnumber = 0
 device = torch.device(f"cuda:{dnumber}" if torch.cuda.is_available() else "cpu")
@@ -22,7 +22,7 @@ encodeModel = encodeModel.to(device)
 
 
 def latentGen(encodeModel : autoEncoder, device : torch.device, dataPoisson : np.array): 
-    dP_tensor = torch.tensor(dataPoisson).float()
+    dP_tensor = torch.tensor(dataPoisson_scaled).float()
     p_latent_list = []
 
     batch_size = 100000
@@ -68,9 +68,9 @@ def sampleGen(encodeModel : autoEncoder, device : torch.device):
     print(decodePtest)
     
    
-    bins = np.arange(0,20.5,1)
+    bins = np.arange(0,20.5,0.2)
     plots(testP_CPU, testG, bins, address)
 
 
-latentGen(encodeModel, device, dataPoisson)
+latentGen(encodeModel, device, dataPoisson_scaled)
 #sampleGen(encodeModel, device)

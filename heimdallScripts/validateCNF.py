@@ -15,7 +15,7 @@ EPSILON = 1e-6
 def generatePoissonData(sampleNum,N1,mu1,sig1,N2,mu2,sig2): #N1,mu1,sig1
     minX_center = 0.5
     maxX_edge = 20.5
-    step = 1 # -> bin width
+    step = 0.2 # -> bin width
 
     rawBins = np.arange(minX_center,maxX_edge,step=step)
       
@@ -46,7 +46,7 @@ def valCNF(base_PATH : str):
 
 
     CNFModel = CNF(n_features=6, #6
-                   context_features=10, #TODO make it 10 again
+                   context_features=33, #TODO make it 10 again
                    n_layers = 5,
                    hidden_features = 20,
                    num_bins = 16,
@@ -60,7 +60,7 @@ def valCNF(base_PATH : str):
     CNFModel = CNFModel.to(device)
 
 
-    encodeModel = autoEncoder(20,32,10)
+    encodeModel = autoEncoder(100,50,33)
     ckpt_AE  = torch.load("/raid/vigneshk/Models/AE_checkpoint.pt", map_location=device)
     encodeModel.load_state_dict(ckpt_AE["AE_Model"])
     encodeModel.eval()
@@ -70,7 +70,7 @@ def valCNF(base_PATH : str):
 
     dP , tD, _ = generateTrainingData(1,10000)
 
-    #SCALING
+    #SCALING + STANDARDIZING
     dP_scaled_AT = 2 * np.sqrt(dP + 3/8)
     dP_scaled_AT = (dP_scaled_AT - dP_scaled_mean) / (dP_scaled_std + EPSILON)
 
@@ -83,9 +83,9 @@ def valCNF(base_PATH : str):
     with torch.no_grad():
       for x_batch in tqdm(batch_test):
         x = x_batch.to(device)
-        #cnfP_en = encodeModel._encode(x)
-        #cnfP_en = (cnfP_en - latent_mean)/(latent_std + EPSILON)
-        samples = CNFModel.flow.sample(1000,context=x).cpu().numpy() #TODO changed the context to dP here change it back to cnfP_en
+        cnfP_en = encodeModel._encode(x)
+        cnfP_en = (cnfP_en - latent_mean)/(latent_std + EPSILON)
+        samples = CNFModel.flow.sample(1000,context=cnfP_en).cpu().numpy() #TODO changed the context to dP here change it back to cnfP_en
         sample_cut = samples.reshape(-1,samples.shape[-1])
         testData.append(sample_cut)
 
@@ -99,7 +99,7 @@ def valCNF(base_PATH : str):
     print(cnfT)
     print(thetaDist)
 
-    rawBins = np.array(list(range(21)))   
+    rawBins = np.array(list(range(100)))   
 
     titles = ["N1","mu1","sig1","N2","mu2","sig2"]
        
@@ -116,7 +116,7 @@ def valCNF(base_PATH : str):
 
 
 
-#valCNF("/raid/vigneshk/Models/CNF_NoAE_UpScaledNorms/")
+valCNF("/raid/vigneshk/Models/CNF_AE_IncreasedBins_UpNorm/")
 
 """
 minN1 = 50

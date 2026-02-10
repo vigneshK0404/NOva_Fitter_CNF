@@ -17,32 +17,21 @@ from validateCNF import valCNF
 
 EPSILON = 1e-6
 
-#dataPoisson_latent = torch.tensor(np.load("/raid/vigneshk/data/poissonEncoded.npy")).float()
+dataPoisson_latent = torch.tensor(np.load("/raid/vigneshk/data/poissonEncoded.npy")).float()
 thetaStandard = torch.tensor(np.load("/raid/vigneshk/data/thetaData_standard.npy")).float()
+#dataPoisson_scaled_AT = np.load("/raid/vigneshk/data/poissonEncoded.npy")
+#dataPoisson_AT = torch.tensor(dataPoisson_scaled_AT).float()
 
-dataPoisson = np.load("/raid/vigneshk/data/poissonData.npy")
-dataPoisson_scaled_AT = 2 * np.sqrt(dataPoisson + 3/8)
+latent_mean = torch.tensor(np.load("/raid/vigneshk/data/latentMean.npy")).float()
+latent_std = torch.tensor(np.load("/raid/vigneshk/data/latentStd.npy")).float()
 
-dP_scaled_mean = np.mean(dataPoisson_scaled_AT , axis = 0)
-
-dP_scaled_std = np.std(dataPoisson_scaled_AT, axis=0, ddof=0)
-dataPoisson_scaled_AT = (dataPoisson_scaled_AT - dP_scaled_mean) / (dP_scaled_std + EPSILON)
-
-np.save("/raid/vigneshk/data/dP_scaled_mean",dP_scaled_mean)
-np.save("/raid/vigneshk/data/dP_scaled_std",dP_scaled_std)
-
-dataPoisson_AT = torch.tensor(dataPoisson_scaled_AT).float()
-
-#latent_mean = torch.tensor(np.load("/raid/vigneshk/data/latentMean.npy")).float()
-#latent_std = torch.tensor(np.load("/raid/vigneshk/data/latentStd.npy")).float()
-
-#dataPoisson_latent_Standard = (dataPoisson_latent - latent_mean) / (latent_std + EPSILON)
+dataPoisson_latent_Standard = (dataPoisson_latent - latent_mean) / (latent_std + EPSILON)
 
 def prepare_Model(rank : int, hyper_params : dict):
     n_features = int(thetaStandard.shape[1])
     n_layers = 5
     hidden_features = 20
-    contextF = int(dataPoisson_AT.shape[1]) #TODO change hidden_dim back
+    contextF = int(dataPoisson_latent_Standard.shape[1]) #TODO change hidden_dim back
     num_bins = 16
     tails = "linear"
     tail_bound = 3.5
@@ -96,7 +85,7 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hy
     ddp_setup(rank, world_size)
     CNFmodel = prepare_Model(rank, hyper_params)
     CNFmodel = CNFmodel.train()
-    dataset = trainingDataSet(thetaStandard,dataPoisson_AT) #TODO changing latent to regular here
+    dataset = trainingDataSet(thetaStandard,dataPoisson_latent_Standard) #TODO changing latent to regular here
     train_data = prepare_dataloader(dataset, batch_size)
     trainer = CNF_trainer(CNFmodel, train_data, rank, batch_size)  
 

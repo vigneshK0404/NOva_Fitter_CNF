@@ -28,7 +28,7 @@ def gauss(N,mu,sig,x):
 
     term1 = N_t / (sig_t * np.sqrt(2 * np.pi))
     term2 = np.exp(-0.5 * np.square((x - mu_t) / sig_t))
-    return np.array(term1 * term2)
+    return term1 * term2
 
 def generatePrior(sampleSize):
     N1 = np.random.uniform(minN1,maxN1,sampleSize)
@@ -46,24 +46,25 @@ def generatePrior(sampleSize):
 def generateTrainingData(uniqueNum, sampleNum):
   minX_center = 0.5
   maxX_edge = 20.5
-  step = 1 # -> bin width
+  step = 0.2 # -> bin width
 
   rawBins = np.arange(minX_center,maxX_edge,step=step)
   genP = generatePrior(uniqueNum)
   N1,mu1,sig1,N2,mu2,sig2 = genP
-  #N2,mu2,sig2 = genP
 
   gaussSample = step * (gauss(N2, mu2, sig2,rawBins) + gauss(N1,mu1,sig1,rawBins))
-  #gaussSample = step * (gauss(N2, mu2, sig2,rawBins))
-  fullGaussMatrix = np.repeat(gaussSample,repeats=sampleNum,axis=0)
+  gaussSample_expanded = gaussSample[:,None,:]
 
+  rng = np.random.default_rng()
+  dataPoisson = rng.poisson(lam=gaussSample_expanded,size=(uniqueNum, sampleNum, gaussSample.shape[-1]))
+
+  
   thetaData = np.column_stack(genP)
   fullthetaData = np.repeat(thetaData,repeats=sampleNum,axis=0)
 
-  rng = np.random.default_rng()
-  dataPoisson = rng.poisson(lam=fullGaussMatrix,size=None)
-
-  return dataPoisson, fullthetaData, fullGaussMatrix
+  dataPoisson = dataPoisson.reshape(uniqueNum*sampleNum, gaussSample.shape[-1])
+  
+  return dataPoisson, fullthetaData, gaussSample
 
 
 
@@ -71,25 +72,8 @@ def plots(dP, fG, binEdges, address):
     dP = dP.flatten()
     fG = fG.flatten()
 
-    bin_centers = 0.5 * (binEdges[:-1] + binEdges[1:])
-
-    plt.hist(
-        bin_centers,
-        bins=binEdges,
-        weights=fG,
-        edgecolor='black',
-        alpha=0.6,
-        label='gauss'
-    )
-
-    plt.hist(
-        bin_centers,
-        bins=binEdges,
-        weights=dP,
-        edgecolor='black',
-        alpha=0.6,
-        label='poisson'
-    )
+    plt.bar(binEdges,fG,label="Gaussian",edgecolor="black") 
+    plt.bar(binEdges,dP,label="Poisson",edgecolor="black") 
 
     plt.legend()
     plt.savefig(address)
@@ -103,25 +87,8 @@ def Compare_Theta(theta_gen, fG, binEdges, address):
     print(fG.shape)
     print(len(binEdges))
 
-    bin_centers = 0.5 * (binEdges[:-1] + binEdges[1:])
-
-    plt.hist(
-        bin_centers,
-        bins=binEdges,
-        weights=fG,
-        edgecolor='black',
-        alpha=0.6,
-        label='Theta_real'
-    )
-
-    plt.hist(
-        bin_centers,
-        bins=binEdges,
-        weights=theta_gen,
-        edgecolor='black',
-        alpha=0.6,
-        label='Theta_gen'
-    )
+    plt.bar(binEdges,fG,label="Theta_Real",edgecolor="black") 
+    plt.bar(binEdges,theta_gen,label="Theta_Gen",edgecolor="black") 
 
     plt.legend()
     plt.savefig(address)
