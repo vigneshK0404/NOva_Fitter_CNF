@@ -17,7 +17,7 @@ from validateCNF import valCNF
 
 EPSILON = 1e-6
 
-dataPoisson_latent = torch.tensor(np.load("/raid/vigneshk/data/poissonEncoded.npy")).float()
+#dataPoisson_latent = torch.tensor(np.load("/raid/vigneshk/data/poissonEncoded.npy")).float()
 thetaStandard = torch.tensor(np.load("/raid/vigneshk/data/thetaData_standard.npy")).float()
 
 dataPoisson = np.load("/raid/vigneshk/data/poissonData.npy")
@@ -33,10 +33,10 @@ np.save("/raid/vigneshk/data/dP_scaled_std",dP_scaled_std)
 
 dataPoisson_AT = torch.tensor(dataPoisson_scaled_AT).float()
 
-latent_mean = torch.tensor(np.load("/raid/vigneshk/data/latentMean.npy")).float()
-latent_std = torch.tensor(np.load("/raid/vigneshk/data/latentStd.npy")).float()
+#latent_mean = torch.tensor(np.load("/raid/vigneshk/data/latentMean.npy")).float()
+#latent_std = torch.tensor(np.load("/raid/vigneshk/data/latentStd.npy")).float()
 
-dataPoisson_latent_Standard = (dataPoisson_latent - latent_mean) / (latent_std + EPSILON)
+#dataPoisson_latent_Standard = (dataPoisson_latent - latent_mean) / (latent_std + EPSILON)
 
 def prepare_Model(rank : int, hyper_params : dict):
     n_features = int(thetaStandard.shape[1])

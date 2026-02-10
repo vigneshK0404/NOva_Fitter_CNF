@@ -1,12 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+alpha = 100
 
-minN1 = 50
-maxN1 = 100
+minN1 = alpha*50
+maxN1 = alpha*100
 
-minN2 = 50
-maxN2 = 70
+minN2 = alpha*50
+maxN2 = alpha*70
 
 minmu1 = 3
 maxmu1 = 6

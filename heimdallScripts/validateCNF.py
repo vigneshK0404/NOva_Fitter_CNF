@@ -46,7 +46,7 @@ def valCNF(base_PATH : str):
 
 
     CNFModel = CNF(n_features=6, #6
-                   context_features=20, #TODO make it 10 again
+                   context_features=10, #TODO make it 10 again
                    n_layers = 5,
                    hidden_features = 20,
                    num_bins = 16,
@@ -116,7 +116,7 @@ def valCNF(base_PATH : str):
 
 
 
-valCNF("/raid/vigneshk/Models/CNF_NoAE_StandardizedPoisson/")
+#valCNF("/raid/vigneshk/Models/CNF_NoAE_UpScaledNorms/")
 
 """
 minN1 = 50
