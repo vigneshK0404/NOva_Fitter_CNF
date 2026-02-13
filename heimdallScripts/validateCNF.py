@@ -120,4 +120,4 @@ def valCNF(base_PATH : str):
 
 
 
-valCNF("/raid/vigneshk/Models/CNF_SwitchOrder/")
+#valCNF("/raid/vigneshk/Models/CNF_SwitchOrder/")

@@ -4,10 +4,10 @@ import matplotlib.pyplot as plt
 alpha = 100
 
 minN1 = alpha*50
-maxN1 = alpha*100
+maxN1 = alpha*1000
 
 minN2 = alpha*50
-maxN2 = alpha*70
+maxN2 = alpha*700
 
 minmu1 = 3
 maxmu1 = 6

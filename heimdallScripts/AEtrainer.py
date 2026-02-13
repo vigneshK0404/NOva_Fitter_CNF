@@ -53,6 +53,4 @@ if __name__ == "__main__":
 
     mp.spawn(main, args=(world_size, total_epochs, batch_size), nprocs=world_size)
 
-    if runGen == "True":
-
 
