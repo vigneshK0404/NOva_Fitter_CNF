@@ -7,6 +7,7 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 import os
+import sys
 
 
 
@@ -47,5 +48,11 @@ if __name__ == "__main__":
     world_size = torch.cuda.device_count()
     batch_size = 1024
     total_epochs = 15
+
+    #TODO Add argv here for latent Gen
+
     mp.spawn(main, args=(world_size, total_epochs, batch_size), nprocs=world_size)
+
+    if runGen == "True":
+
 

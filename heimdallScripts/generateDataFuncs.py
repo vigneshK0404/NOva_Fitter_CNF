@@ -40,8 +40,7 @@ def generatePrior(sampleSize):
     sig1 = np.random.uniform(minsig1,maxsig1,sampleSize)
     sig2 = np.random.uniform(minsig2,maxsig2,sampleSize)
 
-    return N1,mu1,sig1,N2,mu2,sig2
-    #return N2,mu2,sig2
+    return N1,N2,mu1,mu2,sig1,sig2
 
 def generateTrainingData(uniqueNum, sampleNum):
   minX_center = 0.5
@@ -50,7 +49,7 @@ def generateTrainingData(uniqueNum, sampleNum):
 
   rawBins = np.arange(minX_center,maxX_edge,step=step)
   genP = generatePrior(uniqueNum)
-  N1,mu1,sig1,N2,mu2,sig2 = genP
+  N1,N2,mu1,mu2,sig1,sig2 = genP
 
   gaussSample = step * (gauss(N2, mu2, sig2,rawBins) + gauss(N1,mu1,sig1,rawBins))
   gaussSample_expanded = gaussSample[:,None,:]
@@ -68,18 +67,18 @@ def generateTrainingData(uniqueNum, sampleNum):
 
 
 
-def plots(dP, fG, binEdges, address):
+def plots(dP, fG, binEdges, address, bin_width):
     dP = dP.flatten()
     fG = fG.flatten()
 
-    plt.bar(binEdges,fG,label="Gaussian",edgecolor="black") 
-    plt.bar(binEdges,dP,label="Poisson",edgecolor="black") 
+    plt.bar(binEdges,fG,width=bin_width,label="Gaussian",edgecolor="black") 
+    plt.bar(binEdges,dP,width=bin_width,label="Poisson",edgecolor="black",alpha=0.5) 
 
     plt.legend()
     plt.savefig(address)
     plt.clf()
 
-def Compare_Theta(theta_gen, fG, binEdges, address):
+def Compare_Theta(theta_gen, fG, binEdges, address, bin_width):
     theta_gen = theta_gen.flatten()
     fG = fG.flatten()
 
@@ -87,8 +86,8 @@ def Compare_Theta(theta_gen, fG, binEdges, address):
     print(fG.shape)
     print(len(binEdges))
 
-    plt.bar(binEdges,fG,label="Theta_Real",edgecolor="black") 
-    plt.bar(binEdges,theta_gen,label="Theta_Gen",edgecolor="black") 
+    plt.bar(binEdges,fG,width=bin_width,label="Theta_Real",edgecolor="black") 
+    plt.bar(binEdges,theta_gen,width=bin_width,label="Theta_Gen",edgecolor="black",alpha=0.5) 
 
     plt.legend()
     plt.savefig(address)

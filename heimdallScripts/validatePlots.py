@@ -2,15 +2,17 @@ from fpdf import FPDF
 import matplotlib.pyplot as plt
 import numpy as np
 import pickle
+import torch
 
-
+EPSILON = 1e-6
 
 def plotHist(thetaDist : np.array , ref_vals : np.array , titles : list, base_PATH : str):
 
     thetaDistError = (thetaDist - ref_vals)*100/ref_vals
     
-    thetaErrorSums = np.sum(thetaDistError,axis=1)
+    thetaErrorSums = np.sum(np.abs(thetaDistError),axis=1)
     worstTheta = thetaDist[np.argmax(thetaErrorSums)]
+    bestTheta = thetaDist[np.argmin(thetaErrorSums)]
 
     iterations = thetaDist.shape[1]
 
@@ -57,7 +59,7 @@ def plotHist(thetaDist : np.array , ref_vals : np.array , titles : list, base_PA
         pdf.image(imagePath,x=10,y=60,w=200,h=170)
     
     pdf.output(base_PATH + "ThetaPlots.pdf","F")
-    return worstTheta
+    return worstTheta, bestTheta
 
 
 
@@ -68,12 +70,15 @@ def drawLatent():
 
     dP_std = (dataPoisson_latent - latent_mean) / (latent_std + EPSILON)
 
-    print(latent_std)
+    print(f"latent Space : {dP_std}")
+    base = "/raid/vigneshk/plots/LatentPlots/LatentPoissonBin_Std"
     
     for i in range(10):
         data = dP_std[:,i]
         plt.hist(data)
-        plt.savefig("/raid/vigneshk/plots/PoissonPlots/" + "LatentPoissonBin_Std"+str(i)+".png")
+        plt.savefig(base+str(i)+".png")
         plt.clf()
     
 
+
+#drawLatent()

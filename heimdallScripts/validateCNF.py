@@ -12,7 +12,7 @@ import pickle
 
 EPSILON = 1e-6
 
-def generatePoissonData(sampleNum,N1,mu1,sig1,N2,mu2,sig2): #N1,mu1,sig1
+def generatePoissonData(sampleNum,N1,N2,mu1,mu2,sig1,sig2): #N1,mu1,sig1
     minX_center = 0.5
     maxX_edge = 20.5
     step = 0.2 # -> bin width
@@ -85,7 +85,7 @@ def valCNF(base_PATH : str):
         x = x_batch.to(device)
         cnfP_en = encodeModel._encode(x)
         cnfP_en = (cnfP_en - latent_mean)/(latent_std + EPSILON)
-        samples = CNFModel.flow.sample(1000,context=cnfP_en).cpu().numpy() #TODO changed the context to dP here change it back to cnfP_en
+        samples = CNFModel.flow.sample(100,context=cnfP_en).cpu().numpy() #TODO changed the context to dP here change it back to cnfP_en
         sample_cut = samples.reshape(-1,samples.shape[-1])
         testData.append(sample_cut)
 
@@ -99,45 +99,25 @@ def valCNF(base_PATH : str):
     print(cnfT)
     print(thetaDist)
 
-    rawBins = np.array(list(range(100)))   
+    rawBins = np.arange(0.5,20.5,0.2)   
 
-    titles = ["N1","mu1","sig1","N2","mu2","sig2"]
+    titles = ["N1","N2","mu1","mu2","sig1","sig2"]
        
-    worstTheta = plotHist(thetaDist,cnfT,titles,base_PATH)
+    worstTheta, bestTheta = plotHist(thetaDist,cnfT,titles,base_PATH)
     print(f"Worst Theta Value:{worstTheta}")
+    print(f"Best Theta Value:{bestTheta}")
     worstPoisson, worstGauss = generatePoissonData(1,*worstTheta)
+    bestPoisson, bestGauss = generatePoissonData(1,*bestTheta)
     dP_real , gT_real = generatePoissonData(1,*cnfT)
-    Compare_Theta(worstGauss,gT_real,rawBins,base_PATH+"Gauss_ThetaReal_vs_WorstTheta")
-    plots(dP_real,gT_real,rawBins,base_PATH+"poissonReal.png")
-    plots(worstPoisson,worstGauss,rawBins,base_PATH+"poissonWorst.png")
+    Compare_Theta(worstGauss,gT_real,rawBins,base_PATH+"Gauss_ThetaReal_vs_WorstTheta.png", bin_width = 0.2)
+    Compare_Theta(bestGauss,gT_real,rawBins,base_PATH+"Gauss_ThetaReal_vs_BestTheta.png", bin_width = 0.2)
+    plots(dP_real,gT_real,rawBins,base_PATH+"poissonReal.png", bin_width = 0.2)
+    plots(worstPoisson,worstGauss,rawBins,base_PATH+"poissonWorst.png", bin_width = 0.2)
+    plots(bestPoisson,bestGauss,rawBins,base_PATH+"poissonBest.png", bin_width = 0.2)
 
 
 
 
 
 
-valCNF("/raid/vigneshk/Models/CNF_AE_IncreasedBins_UpNorm/")
-
-"""
-minN1 = 50
-maxN1 = 100
-
-minN2 = 50
-maxN2 = 70
-
-minmu1 = 3
-maxmu1 = 6
-
-minmu2 = 12
-maxmu2 = 15
-
-minsig1 = 1
-maxsig1 = 3
-
-minsig2 = 1
-maxsig2 = 3
-
-minVals = [minN1,minmu1,minsig1,minN2,minmu2,minsig2]
-maxVals = [maxN1,maxmu1,maxsig1,maxN2,maxmu2,maxsig2]
-
-"""
+valCNF("/raid/vigneshk/Models/CNF_SwitchOrder/")
