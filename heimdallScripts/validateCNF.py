@@ -1,5 +1,5 @@
 from modelClasses import CNF, autoEncoder
-from generateDataFuncs import generateTrainingData, Compare_Theta, gauss, plots
+from generateDataFuncs import generateTrainingData, Compare_Theta, gauss, plots, doubleGaussCDF
 from validatePlots import plotHist
 
 import torch
@@ -8,6 +8,9 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import torchinfo
 import pickle
+
+from iminuit import Minuit
+from iminuit.cost import ExtendedBinnedNLL
 
 
 EPSILON = 1e-6
@@ -99,7 +102,8 @@ def valCNF(base_PATH : str):
     print(cnfT)
     print(thetaDist)
 
-    rawBins = np.arange(0.5,20.5,0.2)   
+    rawBins = np.arange(0.5,20.5,0.2)
+    binEdges = np.linspace(0.4,20.4,len(rawBins)+1)
 
     titles = ["N1","N2","mu1","mu2","sig1","sig2"]
        
@@ -115,9 +119,19 @@ def valCNF(base_PATH : str):
     plots(worstPoisson,worstGauss,rawBins,base_PATH+"poissonWorst.png", bin_width = 0.2)
     plots(bestPoisson,bestGauss,rawBins,base_PATH+"poissonBest.png", bin_width = 0.2)
 
+    cost = ExtendedBinnedNLL(bestPoisson.flatten(),binEdges,doubleGaussCDF)
+    m = Minuit(cost,*bestTheta)
+    m.migrad()
+    m.hesse()
+
+    params = []
+    for f in m.values:
+        params.append(f)
+    params = np.array(params)
+    print(params)
+    print(bestTheta)
 
 
 
 
-
-#valCNF("/raid/vigneshk/Models/CNF_SwitchOrder/")
+#valCNF("/raid/vigneshk/Models/CNF_Final/")

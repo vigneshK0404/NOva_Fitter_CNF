@@ -94,5 +94,11 @@ def Compare_Theta(theta_gen, fG, binEdges, address, bin_width):
     plt.clf()
 
 
+def doubleGaussCDF(x,N1,N2,mu1,mu2,sig1,sig2):
+    step = 0.2
+    pdf = (step * (gauss(N1,mu1,sig1,x) + gauss(N2,mu2,sig2,x))).flatten()
+    return np.cumsum(pdf)
+
+
 
 
