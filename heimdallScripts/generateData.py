@@ -1,9 +1,9 @@
 from generateDataFuncs import *
 
-EPSILON = 1e-6
+EPSILON = 1e-4
 
 uniqueSample = 10000
-repeatSample = 1024
+repeatSample = 2048
 base = "/raid/vigneshk/data/"
 
 thetaSave = base+"theta_data"

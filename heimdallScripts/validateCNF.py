@@ -13,7 +13,7 @@ from iminuit import Minuit
 from iminuit.cost import ExtendedBinnedNLL
 
 
-EPSILON = 1e-6
+EPSILON = 1e-4
 
 def generatePoissonData(sampleNum,N1,N2,mu1,mu2,sig1,sig2): #N1,mu1,sig1
     minX_center = 0.5
@@ -124,13 +124,24 @@ def valCNF(base_PATH : str):
     m.migrad()
     m.hesse()
 
+    costWorst = ExtendedBinnedNLL(worstPoisson.flatten(), binEdges, doubleGaussCDF)
+    mW = Minuit(costWorst,*worstTheta)
+    mW.migrad()
+    mW.hesse()
+
     params = []
+    paramsW = []
     for f in m.values:
         params.append(f)
-    params = np.array(params)
-    print(params)
-    print(bestTheta)
 
+    for f in mW.values:
+        paramsW.append(f)
+
+    params = np.array(params)
+    paramsW = np.array(paramsW)
+    print(f"BestFit : {params}")
+    print(f"Worst : {paramsW}")
+    print(f"Truth : {bestTheta}") 
 
 
 

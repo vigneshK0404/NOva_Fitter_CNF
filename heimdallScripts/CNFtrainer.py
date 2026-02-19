@@ -15,7 +15,7 @@ from pathlib import Path
 from validateCNF import valCNF
 
 
-EPSILON = 1e-6
+EPSILON = 1e-4
 
 dataPoisson_latent = torch.tensor(np.load("/raid/vigneshk/data/poissonEncoded.npy")).float()
 thetaStandard = torch.tensor(np.load("/raid/vigneshk/data/thetaData_standard.npy")).float()
@@ -103,7 +103,7 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hy
 
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()
-    batch_size = 1024
+    batch_size = 512
     total_epochs = 7
 
     args = sys.argv

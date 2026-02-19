@@ -4,7 +4,7 @@ import numpy as np
 import pickle
 import torch
 
-EPSILON = 1e-6
+EPSILON = 1e-4
 
 def plotHist(thetaDist : np.array , ref_vals : np.array , titles : list, base_PATH : str):
 
