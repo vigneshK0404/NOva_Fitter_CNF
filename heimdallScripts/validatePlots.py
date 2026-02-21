@@ -6,13 +6,22 @@ import torch
 
 EPSILON = 1e-4
 
-def plotHist(thetaDist : np.array , ref_vals : np.array , titles : list, base_PATH : str):
+def findMode(thetaDist : np.array):
 
-    thetaDistError = (thetaDist - ref_vals)*100/ref_vals
-    
-    thetaErrorSums = np.sum(np.abs(thetaDistError),axis=1)
-    worstTheta = thetaDist[np.argmax(thetaErrorSums)]
-    bestTheta = thetaDist[np.argmin(thetaErrorSums)]
+    iterations = thetaDist.shape[1]
+    modeVals = []
+
+    for i in range(iterations):
+        data = thetaDist[:,i]
+        hist, bin_edges = np.histogram(data)
+        idx = np.argmax(hist)
+        mode = (bin_edges[idx] + bin_edges[idx+1])/2
+        modeVals.append(mode.item())
+
+    return np.array(modeVals)
+
+
+def plotHist(thetaDist : np.array , titles : list, base_PATH : str):
 
     iterations = thetaDist.shape[1]
 
@@ -20,7 +29,6 @@ def plotHist(thetaDist : np.array , ref_vals : np.array , titles : list, base_PA
     PATH = base_PATH + "hP.bin"
     with open(PATH, 'rb') as handle:
         hyper_params = pickle.load(handle)
-
 
     full_string = str()
    
@@ -36,7 +44,7 @@ def plotHist(thetaDist : np.array , ref_vals : np.array , titles : list, base_PA
     pdf.multi_cell(w=0,h=10,txt=full_string,border=1)
     
     for i in range(iterations):
-        data_plot = thetaDistError[:,i]
+        data_plot = thetaDist[:,i]
         outOfRange = data_plot[(data_plot > 100) | (data_plot < -100)]
         print(f"{titles[i]} Out of Range : {outOfRange}")
 
@@ -59,8 +67,6 @@ def plotHist(thetaDist : np.array , ref_vals : np.array , titles : list, base_PA
         pdf.image(imagePath,x=10,y=60,w=200,h=170)
     
     pdf.output(base_PATH + "ThetaPlots.pdf","F")
-    return worstTheta, bestTheta
-
 
 
 def drawLatent():

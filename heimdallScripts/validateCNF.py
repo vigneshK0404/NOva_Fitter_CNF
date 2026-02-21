@@ -1,6 +1,6 @@
 from modelClasses import CNF, autoEncoder
 from generateDataFuncs import generateTrainingData, Compare_Theta, gauss, plots, doubleGaussCDF
-from validatePlots import plotHist
+from validatePlots import plotHist, findMode
 
 import torch
 import numpy as np
@@ -28,12 +28,10 @@ def generatePoissonData(sampleNum,N1,N2,mu1,mu2,sig1,sig2): #N1,mu1,sig1
     dataPoisson = rng.poisson(lam=gaussSample,size=None)
 
     return dataPoisson, gaussSample
-                
 
-def valCNF(base_PATH : str):
 
-    hyper_params = dict()
-    
+def GenPreds(base_PATH : str, iters : int):
+
     dnumber = 0
     device = torch.device(f"cuda:{dnumber}" if torch.cuda.is_available() else "cpu")
     print(device) 
@@ -49,7 +47,7 @@ def valCNF(base_PATH : str):
 
 
     CNFModel = CNF(n_features=6, #6
-                   context_features=33, #TODO make it 10 again
+                   context_features=33, 
                    n_layers = 5,
                    hidden_features = 20,
                    num_bins = 16,
@@ -69,80 +67,77 @@ def valCNF(base_PATH : str):
     encodeModel.eval()
     encodeModel = encodeModel.to(device)
 
-
-
-    dP , tD, _ = generateTrainingData(1,10000)
-
-    #SCALING + STANDARDIZING
-    dP_scaled_AT = 2 * np.sqrt(dP + 3/8)
-    dP_scaled_AT = (dP_scaled_AT - dP_scaled_mean) / (dP_scaled_std + EPSILON)
-
-
-    dP_ten = torch.tensor(dP_scaled_AT).float()
-    batch_test = DataLoader(dP_ten,batch_size=1000)
-
-    testData = []
-
-    with torch.no_grad():
-      for x_batch in tqdm(batch_test):
-        x = x_batch.to(device)
-        cnfP_en = encodeModel._encode(x)
-        cnfP_en = (cnfP_en - latent_mean)/(latent_std + EPSILON)
-        samples = CNFModel.flow.sample(100,context=cnfP_en).cpu().numpy() #TODO changed the context to dP here change it back to cnfP_en
-        sample_cut = samples.reshape(-1,samples.shape[-1])
-        testData.append(sample_cut)
-
+    returnList = []
     
-    thetaDist = np.concatenate(testData,axis=0)
-    thetaDist = (thetaDist * thetaStd) + thetaMean
+    for i in range(iters):
+        dP , tD, _ = generateTrainingData(1,10000)
 
-    cnfT = tD[0]
-    
+        #SCALING + STANDARDIZING
+        dP_scaled_AT = 2 * np.sqrt(dP + 3/8)
+        dP_scaled_AT = (dP_scaled_AT - dP_scaled_mean) / (dP_scaled_std + EPSILON)
 
-    print(cnfT)
-    print(thetaDist)
+
+        dP_ten = torch.tensor(dP_scaled_AT).float()
+        batch_test = DataLoader(dP_ten,batch_size=1000)
+
+        testData = []
+
+        with torch.no_grad():
+          for x_batch in tqdm(batch_test):
+            x = x_batch.to(device)
+            cnfP_en = encodeModel._encode(x)
+            cnfP_en = (cnfP_en - latent_mean)/(latent_std + EPSILON)
+            samples = CNFModel.flow.sample(50,context=cnfP_en).cpu().numpy() 
+            sample_cut = samples.reshape(-1,samples.shape[-1])
+            testData.append(sample_cut)
+
+        
+        thetaDist = np.concatenate(testData,axis=0)
+        thetaDist = (thetaDist * thetaStd) + thetaMean
+
+        cnfT = tD[0]
+        returnList.append([cnfT,thetaDist])        
+
+    return returnList
+
+                
+
+def valCNF(base_PATH : str, iters : int):
+
 
     rawBins = np.arange(0.5,20.5,0.2)
     binEdges = np.linspace(0.4,20.4,len(rawBins)+1)
-
     titles = ["N1","N2","mu1","mu2","sig1","sig2"]
-       
-    worstTheta, bestTheta = plotHist(thetaDist,cnfT,titles,base_PATH)
-    print(f"Worst Theta Value:{worstTheta}")
-    print(f"Best Theta Value:{bestTheta}")
-    worstPoisson, worstGauss = generatePoissonData(1,*worstTheta)
-    bestPoisson, bestGauss = generatePoissonData(1,*bestTheta)
-    dP_real , gT_real = generatePoissonData(1,*cnfT)
-    Compare_Theta(worstGauss,gT_real,rawBins,base_PATH+"Gauss_ThetaReal_vs_WorstTheta.png", bin_width = 0.2)
-    Compare_Theta(bestGauss,gT_real,rawBins,base_PATH+"Gauss_ThetaReal_vs_BestTheta.png", bin_width = 0.2)
-    plots(dP_real,gT_real,rawBins,base_PATH+"poissonReal.png", bin_width = 0.2)
-    plots(worstPoisson,worstGauss,rawBins,base_PATH+"poissonWorst.png", bin_width = 0.2)
-    plots(bestPoisson,bestGauss,rawBins,base_PATH+"poissonBest.png", bin_width = 0.2)
 
-    cost = ExtendedBinnedNLL(bestPoisson.flatten(),binEdges,doubleGaussCDF)
-    m = Minuit(cost,*bestTheta)
-    m.migrad()
-    m.hesse()
+    infers = []
+    refs = []
 
-    costWorst = ExtendedBinnedNLL(worstPoisson.flatten(), binEdges, doubleGaussCDF)
-    mW = Minuit(costWorst,*worstTheta)
-    mW.migrad()
-    mW.hesse()
+    dataList = GenPreds(base_PATH, iters)
+    
+    for data in dataList:
+        cnfT, thetaDist = data
+        modeVals = findMode(thetaDist)
+        modePoisson , _ = generatePoissonData(1,*modeVals)
+        cost = ExtendedBinnedNLL(modePoisson.flatten(),binEdges,doubleGaussCDF)
+        m = Minuit(cost,*modeVals)
+        m.migrad()
 
-    params = []
-    paramsW = []
-    for f in m.values:
-        params.append(f)
+        params = []
+        for f in m.values:
+            params.append(f)  
+        paramsArr = np.array(params)
+        
+        infers.append(paramsArr)
+        refs.append(cnfT)
 
-    for f in mW.values:
-        paramsW.append(f)
-
-    params = np.array(params)
-    paramsW = np.array(paramsW)
-    print(f"BestFit : {params}")
-    print(f"Worst : {paramsW}")
-    print(f"Truth : {bestTheta}") 
+        print(f"Real Theta : {cnfT}")
+        print(f"Inferred+Fitted Theta : {paramsArr}")
+    
+    infersDist = np.vstack(infers)
+    refsDist = np.vstack(refs)
+    percDiff = (infersDist - refsDist)*100/refsDist
+    
+    plotHist(percDiff,titles,base_PATH)
 
 
-
-#valCNF("/raid/vigneshk/Models/CNF_Final/")
+valCNF("/raid/vigneshk/Models/CNF_BatchNormFinal/", 360)
