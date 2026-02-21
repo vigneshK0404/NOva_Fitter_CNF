@@ -117,8 +117,8 @@ def valCNF(base_PATH : str, iters : int):
     for data in dataList:
         cnfT, thetaDist = data
         modeVals = findMode(thetaDist)
-        modePoisson , _ = generatePoissonData(1,*modeVals)
-        cost = ExtendedBinnedNLL(modePoisson.flatten(),binEdges,doubleGaussCDF)
+        dataPoisson , _ = generatePoissonData(1,*cnfT)
+        cost = ExtendedBinnedNLL(dataPoisson.flatten(),binEdges,doubleGaussCDF)
         m = Minuit(cost,*modeVals)
         m.migrad()
 
