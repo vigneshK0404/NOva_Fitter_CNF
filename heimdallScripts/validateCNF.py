@@ -83,7 +83,7 @@ def GenPreds(base_PATH : str, iters : int):
         testData = []
 
         with torch.no_grad():
-          for x_batch in tqdm(batch_test):
+          for x_batch in batch_test:
             x = x_batch.to(device)
             cnfP_en = encodeModel._encode(x)
             cnfP_en = (cnfP_en - latent_mean)/(latent_std + EPSILON)
@@ -114,7 +114,7 @@ def valCNF(base_PATH : str, iters : int):
 
     dataList = GenPreds(base_PATH, iters)
     
-    for data in dataList:
+    for data in tqdm(dataList):
         cnfT, thetaDist = data
         modeVals = findMode(thetaDist)
         dataPoisson , _ = generatePoissonData(1,*cnfT)
