@@ -1,6 +1,6 @@
 from modelClasses import CNF, autoEncoder
 from generateDataFuncs import generateTrainingData, Compare_Theta, gauss, plots, doubleGaussCDF
-from validatePlots import plotHist, findMode
+from validatePlots import plotHist, ModeMeanShift
 
 import torch
 import numpy as np
@@ -116,7 +116,7 @@ def valCNF(base_PATH : str, iters : int):
     
     for data in tqdm(dataList):
         cnfT, thetaDist = data
-        modeVals = findMode(thetaDist)
+        modeVals = ModeMeanShift(thetaDist,smoothing=2,minRatio = 100)[0]
         dataPoisson , _ = generatePoissonData(1,*cnfT)
         cost = ExtendedBinnedNLL(dataPoisson.flatten(),binEdges,doubleGaussCDF)
         m = Minuit(cost,*modeVals)
@@ -141,3 +141,5 @@ def valCNF(base_PATH : str, iters : int):
 
 
 valCNF("/raid/vigneshk/Models/CNF_BatchNormFinal/", 360)
+
+

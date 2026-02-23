@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pickle
 import torch
+from sklearn.cluster import MeanShift, estimate_bandwidth
+
 
 EPSILON = 1e-4
 
@@ -19,6 +21,19 @@ def findMode(thetaDist : np.array):
         modeVals.append(mode.item())
 
     return np.array(modeVals)
+
+
+def ModeMeanShift(thetaDist : np.array, smoothing : int, minRatio : int):
+
+    bandwidth = estimate_bandwidth(thetaDist, quantile=0.2, n_samples=500) * smoothing
+    min_freq = int(thetaDist.shape[0] / minRatio)
+    #print(f"Bandwidth : {bandwidth}")
+        
+    ms = MeanShift(bandwidth=bandwidth, bin_seeding=True, max_iter=50, min_bin_freq=min_freq)
+    ms.fit(thetaDist)
+    cluster_centers = ms.cluster_centers_
+  
+    return cluster_centers
 
 
 def plotHist(thetaDist : np.array , titles : list, base_PATH : str):
