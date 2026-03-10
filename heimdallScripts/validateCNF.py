@@ -1,6 +1,6 @@
 from modelClasses import CNF, autoEncoder
 from generateDataFuncs import generateTrainingData, Compare_Theta, gauss, plots, doubleGaussCDF
-from validatePlots import plotHist, ModeMeanShift
+from validatePlots import plotHist, ModeMeanShift, plot2DMarginals
 
 import torch
 import numpy as np
@@ -113,9 +113,15 @@ def valCNF(base_PATH : str, iters : int):
     refs = []
 
     dataList = GenPreds(base_PATH, iters)
+    counter = 0
     
     for data in tqdm(dataList):
         cnfT, thetaDist = data
+
+        if counter == 0 :
+            plot2DMarginals(thetaDist,titles,base_PATH)
+            counter += 1
+        
         modeVals = ModeMeanShift(thetaDist,smoothing=2,minRatio = 100)[0]
         dataPoisson , _ = generatePoissonData(1,*cnfT)
         cost = ExtendedBinnedNLL(dataPoisson.flatten(),binEdges,doubleGaussCDF)
@@ -138,8 +144,11 @@ def valCNF(base_PATH : str, iters : int):
     percDiff = (infersDist - refsDist)*100/refsDist
     
     plotHist(percDiff,titles,base_PATH)
+    
 
 
-valCNF("/raid/vigneshk/Models/CNF_BatchNormFinal/", 360)
+
+if __name__ == "__main__":
+    valCNF("/raid/vigneshk/Models/CNF_BatchNormFinal/", 20)
 
 

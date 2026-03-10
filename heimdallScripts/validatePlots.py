@@ -35,6 +35,35 @@ def ModeMeanShift(thetaDist : np.array, smoothing : int, minRatio : int):
   
     return cluster_centers
 
+def plot2DMarginals(thetaDist : np.array, titles : list, base_PATH : str):
+
+    iterations = thetaDist.shape[1]
+    
+    pdf = FPDF()
+    
+    for i in range(iterations):
+        x = thetaDist[:,i]
+        titleX = titles[i]
+        for j in range(i+1,iterations):
+            y = thetaDist[:,j]
+            titleY = titles[j]
+            title = f"{titleX} vs {titleY}"
+            imagePath = base_PATH + title + ".png"
+
+            plt.figure()            
+            plt.scatter(x,y)
+            plt.xlabel(titleX)
+            plt.ylabel(titleY)
+            plt.title(title)
+            plt.savefig(imagePath)
+            plt.close()
+
+            pdf.add_page()
+            pdf.image(imagePath,x=10,y=60,w=200,h=170)
+    pdf.output(base_PATH + "2DMarginals.pdf", "F")
+        
+
+
 
 def plotHist(thetaDist : np.array , titles : list, base_PATH : str):
 
