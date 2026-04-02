@@ -70,7 +70,7 @@ def GenPreds(base_PATH : str, iters : int):
     returnList = []
     
     for i in range(iters):
-        dP , tD, _ = generateTrainingData(1,10000)
+        dP , tD, _ = generateTrainingData(1,5000)
 
         #SCALING + STANDARDIZING
         dP_scaled_AT = 2 * np.sqrt(dP + 3/8)
@@ -87,7 +87,7 @@ def GenPreds(base_PATH : str, iters : int):
             x = x_batch.to(device)
             cnfP_en = encodeModel._encode(x)
             cnfP_en = (cnfP_en - latent_mean)/(latent_std + EPSILON)
-            samples = CNFModel.flow.sample(50,context=cnfP_en).cpu().numpy() 
+            samples = CNFModel.flow.sample(10,context=cnfP_en).cpu().numpy() 
             sample_cut = samples.reshape(-1,samples.shape[-1])
             testData.append(sample_cut)
 
@@ -149,6 +149,6 @@ def valCNF(base_PATH : str, iters : int):
 
 
 if __name__ == "__main__":
-    valCNF("/raid/vigneshk/Models/CNF_BatchNormFinal/", 20)
+    valCNF("/raid/vigneshk/Models/CNF_BatchNormFinal/", 500)
 
 
