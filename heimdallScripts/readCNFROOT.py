@@ -2,6 +2,7 @@ import numpy as np
 import uproot
 
 repeatSample = 100
+uniqueSample = 10000
 EPSILON = 1e-4
 
 def getSterileData(base_path : str):
@@ -43,20 +44,22 @@ def getSterileData(base_path : str):
 
     print("Standardized Data")
 
+    testTrainRatio = int(repeatSample * (0.8*uniqueSample))
+    param_train = params[:testTrainRatio,:]
+    param_test = params[testTrainRatio:,:]
+    data_train = data_AT[:testTrainRatio,:]
+    data_test = data_AT[testTrainRatio:,:]
+
+    print("Split training and testing data 80/20")
+
 
     rng_state = np.random.get_state()
-    np.random.shuffle(data)
+    np.random.shuffle(data_train)
     np.random.set_state(rng_state)
-    np.random.shuffle(params)
+    np.random.shuffle(param_train) 
 
-    trainRatio = int(0.8*len(params))
-    param_train = params[:trainRatio,:]
-    param_test = params[trainRatio:,:]
-    data_train = data[:trainRatio,:]
-    data_test = data[trainRatio:,:]
-
-    print("Shuffled Data and Split 80/20")
-
+    print("Randomized Training Data")
+ 
     np.save(dataSaveTrain,data_train)
     np.save(dataSaveTest,data_test)
 
@@ -70,6 +73,9 @@ def getSterileData(base_path : str):
     np.save(paramsSaveStd,paramsStd)
 
     print("Complete")
+
+    #print(data_train)
+    #print((param_test * paramsStd) + params_mean)
 
        
 

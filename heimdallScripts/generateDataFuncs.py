@@ -101,4 +101,20 @@ def doubleGaussCDF(x,N1,N2,mu1,mu2,sig1,sig2):
 
 
 
+def generatePoissonData(sampleNum,N1,N2,mu1,mu2,sig1,sig2): #N1,mu1,sig1
+    minX_center = 0.5
+    maxX_edge = 20.5
+    step = 0.2 # -> bin width
+
+    rawBins = np.arange(minX_center,maxX_edge,step=step)
+      
+    gaussSample = step * (gauss(N1,mu1,sig1,rawBins) + gauss(N2, mu2, sig2,rawBins)) 
+      
+    rng = np.random.default_rng()
+    dataPoisson = rng.poisson(lam=gaussSample,size=None)
+
+    return dataPoisson, gaussSample
+
+
+
 

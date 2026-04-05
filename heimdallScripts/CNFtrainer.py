@@ -17,19 +17,19 @@ from validateCNF import valCNF
 
 EPSILON = 1e-4
 
-dataPoisson_latent = torch.tensor(np.load("/raid/vigneshk/data/poissonEncoded.npy")).float()
-thetaStandard = torch.tensor(np.load("/raid/vigneshk/data/thetaData_standard.npy")).float()
 
-dP_std = torch.tensor(np.load("/raid/vigneshk/data/latentStd.npy")).float()
-dP_Mean = torch.tensor(np.load("/raid/vigneshk/data/latentMean.npy")).float()
+data_latent = torch.tensor(np.load("/raid/vigneshk/data/dataEncoded.npy")).float()
+latent_std = torch.tensor(np.load("/raid/vigneshk/data/latentStd.npy")).float()
+latent_Mean = torch.tensor(np.load("/raid/vigneshk/data/latentMean.npy")).float()
 
-dP_latent_Standard = (dataPoisson_latent - dP_Mean)/(dP_std + EPSILON)
+thetaStandard = torch.tensor(np.load("/raid/vigneshk/data/paramsTrain.npy")).float()
+data_latent_Standard = (data_latent - latent_Mean)/(latent_std + EPSILON)
 
 def prepare_Model(rank : int, hyper_params : dict):
     n_features = int(thetaStandard.shape[1])
-    n_layers = 5
-    hidden_features = 20
-    contextF = int(dP_latent_Standard.shape[1]) #TODO change hidden_dim back
+    n_layers = 8
+    hidden_features = 25
+    contextF = int(data_latent_Standard.shape[1])
     num_bins = 16
     tails = "linear"
     tail_bound = 3.5
@@ -83,7 +83,7 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hy
     ddp_setup(rank, world_size)
     CNFmodel = prepare_Model(rank, hyper_params)
     CNFmodel = CNFmodel.train()
-    dataset = trainingDataSet(thetaStandard,dP_latent_Standard) #TODO changing latent to regular here
+    dataset = trainingDataSet(thetaStandard,data_latent_Standard)
     train_data = prepare_dataloader(dataset, batch_size)
     trainer = CNF_trainer(CNFmodel, train_data, rank, batch_size)  
 

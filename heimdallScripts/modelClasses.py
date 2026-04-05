@@ -108,25 +108,25 @@ class AE_trainer:
         for x_batch in self.train_data:
             counter += 1
             x_batch = x_batch.to(self.gpu_id, non_blocking = True)
-            loss_rec = self._run_batch(x_batch,record_loss = (counter % 100 == 0))
+            record_bool = ((counter % 10) == 0)
+            loss_rec = self._run_batch(x_batch,record_loss = record_bool)
 
             if loss_rec is not None:
                 self.r_losses.append(loss_rec)
                 print(loss_rec)
 
 
-    def _train(self,max_epoch : int):
+    def _train(self,max_epoch : int, PATH : str):
         for epoch in tqdm(range(max_epoch)):
             self._run_epoch(epoch)
             if (epoch == max_epoch -1) and self.gpu_id == 0:
-                self._save_checkpoint()
+                self._save_checkpoint(PATH)
 
 
         plt.plot(self.r_losses)
         plt.savefig(self.plotDir+"AELoss.png")
 
-    def _save_checkpoint(self):
-        PATH = "/raid/vigneshk/Models/"
+    def _save_checkpoint(self,PATH : str):
         torch.save({
         "AE_Model": self.AEModel.module.state_dict(),
         "AE_Optim": self.optimizer.state_dict(),

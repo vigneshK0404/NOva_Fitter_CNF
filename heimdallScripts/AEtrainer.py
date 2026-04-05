@@ -1,4 +1,5 @@
 from modelClasses import ddp_setup, autoEncoder, AE_trainer
+from generateLatent import latentGen
 import torch
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
@@ -8,14 +9,11 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 import os
 import sys
+from pathlib import Path
 
 
-
-dataPoisson_scaled = np.load("/raid/vigneshk/data/dP_scaled.npy") 
-#np.load("/raid/vigneshk/data/poissonData.npy")
-
-def prepare_Model():
-    input_dim = int(dataPoisson_scaled.shape[1])
+def prepare_Model(data_scaled : np.array):
+    input_dim = int(data_scaled.shape[1])
     middle_dim = int(input_dim / 2)
     output_dim = int(input_dim / 3)
 
@@ -33,14 +31,14 @@ def prepare_dataloader(dataset: torch.tensor, batch_size: int):
         sampler=DistributedSampler(dataset,shuffle=True)
     )
 
-def main(rank: int, world_size: int, total_epochs: int, batch_size: int):
+def main(rank: int, world_size: int, total_epochs: int, batch_size: int, PATH : str, data_scaled : np.array):
     ddp_setup(rank, world_size)
-    AEmodel = prepare_Model()
+    AEmodel = prepare_Model(data_scaled)
     AEmodel = AEmodel.train()
-    dataset = torch.tensor(dataPoisson_scaled).float()
+    dataset = torch.tensor(data_scaled).float()
     train_data = prepare_dataloader(dataset, batch_size)
     trainer = AE_trainer(AEmodel, train_data, rank, batch_size)
-    trainer._train(total_epochs) 
+    trainer._train(total_epochs, PATH) 
     destroy_process_group()
 
 
@@ -49,8 +47,17 @@ if __name__ == "__main__":
     batch_size = 1024
     total_epochs = 15
 
-    #TODO Add argv here for latent Gen
+    folderName = sys.argv[2]
 
-    mp.spawn(main, args=(world_size, total_epochs, batch_size), nprocs=world_size)
+    PATH = f"/raid/vigneshk/Models/{folderName}/"
+    Path(PATH).mkdir(parents=True, exist_ok=True)
+    data_scaled = np.load("/raid/vigneshk/data/dataTrain.npy")
+
+
+    mp.spawn(main, args=(world_size, total_epochs, batch_size, PATH, data_scaled), nprocs=world_size)
+
+    if sys.argv[1] == "True":
+        latentGen(PATH, data_scaled)
+
 
 

@@ -1,5 +1,5 @@
 from modelClasses import CNF, autoEncoder
-from generateDataFuncs import generateTrainingData, Compare_Theta, gauss, plots, doubleGaussCDF
+from generateDataFuncs import generateTrainingData, Compare_Theta, gauss, plots, doubleGaussCDF, generatePoissonData
 from validatePlots import plotHist, ModeMeanShift, plot2DMarginals
 
 import torch
@@ -15,20 +15,6 @@ from iminuit.cost import ExtendedBinnedNLL
 
 EPSILON = 1e-4
 
-def generatePoissonData(sampleNum,N1,N2,mu1,mu2,sig1,sig2): #N1,mu1,sig1
-    minX_center = 0.5
-    maxX_edge = 20.5
-    step = 0.2 # -> bin width
-
-    rawBins = np.arange(minX_center,maxX_edge,step=step)
-      
-    gaussSample = step * (gauss(N1,mu1,sig1,rawBins) + gauss(N2, mu2, sig2,rawBins)) 
-      
-    rng = np.random.default_rng()
-    dataPoisson = rng.poisson(lam=gaussSample,size=None)
-
-    return dataPoisson, gaussSample
-
 
 def GenPreds(base_PATH : str, iters : int):
 
@@ -37,48 +23,49 @@ def GenPreds(base_PATH : str, iters : int):
     print(device) 
 
     latent_mean = torch.tensor(np.load("/raid/vigneshk/data/latentMean.npy")).float().to(device)
-    latent_std = torch.tensor(np.load("/raid/vigneshk/data/latentStd.npy")).float().to(device) 
+    latent_std = torch.tensor(np.load("/raid/vigneshk/data/latentStd.npy")).float().to(device)  
 
-    dP_scaled_mean = np.load("/raid/vigneshk/data/dP_scaled_mean.npy")
-    dP_scaled_std = np.load("/raid/vigneshk/data/dP_scaled_std.npy")
+    thetaMean = np.load("/raid/vigneshk/data/paramsMean.npy")
+    thetaStd = np.load("/raid/vigneshk/data/paramsStd.npy")
 
-    thetaMean = np.load("/raid/vigneshk/data/thetaMean.npy")
-    thetaStd = np.load("/raid/vigneshk/data/thetaStd.npy")
 
+    #TODO: Try it this way, if not great then you will need to shuffle only test data set, or generate more data or something
+
+    dataTest = torch.tensor(np.load("/raid/vigneshk/data/dataTest.npy")).float()
+    paramsTest = np.load("/raid/vigneshk/data/paramsTest.npy")
 
     CNFModel = CNF(n_features=6, #6
-                   context_features=33, 
-                   n_layers = 5,
-                   hidden_features = 20,
+                   context_features=49, 
+                   n_layers = 8,
+                   hidden_features = 25,
                    num_bins = 16,
                    tails = "linear",
                    tail_bound = 3.5)
 
+    print("check0")
 
     ckpt_CNF  = torch.load(base_PATH + "CNF_checkpoint.pt", map_location=device)
     CNFModel.load_state_dict(ckpt_CNF["CNF_Model"])
     CNFModel.eval()
     CNFModel = CNFModel.to(device)
 
+    print("check1")
 
-    encodeModel = autoEncoder(100,50,33)
-    ckpt_AE  = torch.load("/raid/vigneshk/Models/AE_checkpoint.pt", map_location=device)
+
+    encodeModel = autoEncoder(148,74,49)
+    ckpt_AE  = torch.load(base_PATH + "AE_checkpoint.pt", map_location=device)
     encodeModel.load_state_dict(ckpt_AE["AE_Model"])
     encodeModel.eval()
     encodeModel = encodeModel.to(device)
 
-    returnList = []
+    print("check2")
+
+    #returnList = []
     
     for i in range(iters):
-        dP , tD, _ = generateTrainingData(1,5000)
+        batch_test = DataLoader(dataTest,batch_size=100,shuffle = False)
+        print("check3")
 
-        #SCALING + STANDARDIZING
-        dP_scaled_AT = 2 * np.sqrt(dP + 3/8)
-        dP_scaled_AT = (dP_scaled_AT - dP_scaled_mean) / (dP_scaled_std + EPSILON)
-
-
-        dP_ten = torch.tensor(dP_scaled_AT).float()
-        batch_test = DataLoader(dP_ten,batch_size=1000)
 
         testData = []
 
@@ -87,18 +74,19 @@ def GenPreds(base_PATH : str, iters : int):
             x = x_batch.to(device)
             cnfP_en = encodeModel._encode(x)
             cnfP_en = (cnfP_en - latent_mean)/(latent_std + EPSILON)
-            samples = CNFModel.flow.sample(10,context=cnfP_en).cpu().numpy() 
+            samples = CNFModel.flow.sample(1,context=cnfP_en).cpu().numpy() 
             sample_cut = samples.reshape(-1,samples.shape[-1])
             testData.append(sample_cut)
+    
+        print("check4")
 
         
         thetaDist = np.concatenate(testData,axis=0)
         thetaDist = (thetaDist * thetaStd) + thetaMean
+        paramsTest = (paramsTest * thetaStd) + thetaMean
+     
 
-        cnfT = tD[0]
-        returnList.append([cnfT,thetaDist])        
-
-    return returnList
+    return paramsTest, thetaDist
 
                 
 
@@ -107,14 +95,24 @@ def valCNF(base_PATH : str, iters : int):
 
     rawBins = np.arange(0.5,20.5,0.2)
     binEdges = np.linspace(0.4,20.4,len(rawBins)+1)
-    titles = ["N1","N2","mu1","mu2","sig1","sig2"]
+    titles = ["Delta_24","SinSq_24","SinSq_34","Theta_23","DMsq_41","DMsq_32"]    
 
+    paramList, thetaDist = GenPreds(base_PATH,iters)
+
+    print(paramList)
+    print("\nxxxxxxxxxxxxxx\n")
+    print(thetaDist)
+
+    #percDiff = (thetaDist - paramList)*100/thetaDist
+    #plotHist(percDiff,titles,base_PATH)
+
+
+    """
     infers = []
     refs = []
-
     dataList = GenPreds(base_PATH, iters)
+
     counter = 0
-    
     for data in tqdm(dataList):
         cnfT, thetaDist = data
 
@@ -141,14 +139,14 @@ def valCNF(base_PATH : str, iters : int):
     
     infersDist = np.vstack(infers)
     refsDist = np.vstack(refs)
-    percDiff = (infersDist - refsDist)*100/refsDist
-    
+    percDiff = (infersDist - refsDist)*100/refsDist    
     plotHist(percDiff,titles,base_PATH)
+    """
     
 
 
 
 if __name__ == "__main__":
-    valCNF("/raid/vigneshk/Models/CNF_BatchNormFinal/", 500)
+    valCNF("/raid/vigneshk/Models/NOvACNF/", 1)
 
 
