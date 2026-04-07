@@ -4,6 +4,8 @@ import numpy as np
 import pickle
 import torch
 from sklearn.cluster import MeanShift, estimate_bandwidth
+from matplotlib.ticker import MaxNLocator
+
 
 
 EPSILON = 1e-4
@@ -23,18 +25,20 @@ def findMode(thetaDist : np.array):
     return np.array(modeVals)
 
 
-def ModeMeanShift(thetaDist : np.array, smoothing : int, minRatio : int):
+def ModeMeanShift(thetaDist: np.array, smoothing: float, minRatio: int):
 
     bandwidth = estimate_bandwidth(thetaDist, quantile=0.2, n_samples=500) * smoothing
     min_freq = int(thetaDist.shape[0] / minRatio)
-    #print(f"Bandwidth : {bandwidth}")
-        
-    ms = MeanShift(bandwidth=bandwidth, bin_seeding=True, max_iter=50, min_bin_freq=min_freq)
-    ms.fit(thetaDist)
-    cluster_centers = ms.cluster_centers_
-  
-    return cluster_centers
 
+    ms = MeanShift(
+        bandwidth=bandwidth,
+        bin_seeding=True,
+        max_iter=100,
+        min_bin_freq=min_freq
+    )
+
+    ms.fit(thetaDist)
+    return ms.cluster_centers_
 def plot2DMarginals(thetaDist : np.array, titles : list, base_PATH : str):
 
     iterations = thetaDist.shape[1]
@@ -51,10 +55,14 @@ def plot2DMarginals(thetaDist : np.array, titles : list, base_PATH : str):
             imagePath = base_PATH + title + ".png"
 
             plt.figure()            
-            plt.scatter(x,y)
+            _, xeds, yeds, _ = plt.hist2d(x,y,bins=100)
+            print(f"{titleX} : [{xeds[0]}, {xeds[-1]}]")
+            print(f"{titleY} : [{yeds[0]}, {yeds[-1]}]\n")
+            plt.colorbar(label='Frequency of points')
             plt.xlabel(titleX)
             plt.ylabel(titleY)
             plt.title(title)
+            plt.locator_params(axis='both', nbins=10)
             plt.savefig(imagePath)
             plt.close()
 

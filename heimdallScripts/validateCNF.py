@@ -15,7 +15,6 @@ from iminuit.cost import ExtendedBinnedNLL
 
 EPSILON = 1e-4
 
-
 def GenPreds(base_PATH : str, iters : int):
 
     dnumber = 0
@@ -36,21 +35,16 @@ def GenPreds(base_PATH : str, iters : int):
 
     CNFModel = CNF(n_features=6, #6
                    context_features=49, 
-                   n_layers = 8,
+                   n_layers = 6,
                    hidden_features = 25,
                    num_bins = 16,
                    tails = "linear",
-                   tail_bound = 3.5)
-
-    print("check0")
+                   tail_bound = 3.5) 
 
     ckpt_CNF  = torch.load(base_PATH + "CNF_checkpoint.pt", map_location=device)
     CNFModel.load_state_dict(ckpt_CNF["CNF_Model"])
     CNFModel.eval()
     CNFModel = CNFModel.to(device)
-
-    print("check1")
-
 
     encodeModel = autoEncoder(148,74,49)
     ckpt_AE  = torch.load(base_PATH + "AE_checkpoint.pt", map_location=device)
@@ -58,35 +52,33 @@ def GenPreds(base_PATH : str, iters : int):
     encodeModel.eval()
     encodeModel = encodeModel.to(device)
 
-    print("check2")
+    dataTestForDraw = dataTest[::100,:][0]
+    paramsTestForDraw = paramsTest[::100,:][0]
 
-    #returnList = []
-    
-    for i in range(iters):
-        batch_test = DataLoader(dataTest,batch_size=100,shuffle = False)
-        print("check3")
+    #dataTestForDraw = dataTest[0]
+    #paramsTestForDraw = paramsTest[0]
 
+    #print(paramsTestForDraw)
+    #print(dataTestForDraw)
+    dataTestForDraw = dataTestForDraw.unsqueeze(0)
 
-        testData = []
+    with torch.no_grad():
+        x = dataTestForDraw.to(device)
+        enData = encodeModel._encode(x)
+        enData = (enData - latent_mean)/(latent_std + EPSILON)
 
-        with torch.no_grad():
-          for x_batch in batch_test:
-            x = x_batch.to(device)
-            cnfP_en = encodeModel._encode(x)
-            cnfP_en = (cnfP_en - latent_mean)/(latent_std + EPSILON)
-            samples = CNFModel.flow.sample(1,context=cnfP_en).cpu().numpy() 
-            sample_cut = samples.reshape(-1,samples.shape[-1])
-            testData.append(sample_cut)
-    
-        print("check4")
+        #print(enData.shape)
+        samples = CNFModel.flow.sample(10000,context=enData).cpu().numpy()
+        #print(samples)
+        sample_cut = samples.reshape(-1,samples.shape[-1])
 
-        
-        thetaDist = np.concatenate(testData,axis=0)
-        thetaDist = (thetaDist * thetaStd) + thetaMean
-        paramsTest = (paramsTest * thetaStd) + thetaMean
-     
+    paramRet = (paramsTestForDraw * (thetaStd + EPSILON)) + thetaMean
+    inferRet = ModeMeanShift(sample_cut,smoothing=1,minRatio = 100)
 
-    return paramsTest, thetaDist
+    inferRet = (inferRet * (thetaStd + EPSILON)) + thetaMean
+         
+
+    return paramRet, inferRet
 
                 
 
@@ -97,17 +89,25 @@ def valCNF(base_PATH : str, iters : int):
     binEdges = np.linspace(0.4,20.4,len(rawBins)+1)
     titles = ["Delta_24","SinSq_24","SinSq_34","Theta_23","DMsq_41","DMsq_32"]    
 
-    paramList, thetaDist = GenPreds(base_PATH,iters)
+    params, inferDist = GenPreds(base_PATH,iters)
 
-    print(paramList)
-    print("\nxxxxxxxxxxxxxx\n")
-    print(thetaDist)
 
-    #percDiff = (thetaDist - paramList)*100/thetaDist
-    #plotHist(percDiff,titles,base_PATH)
+    print(params)
+    print(inferDist)
 
+    percDiff = (params - inferDist)*100/params
+
+    print(percDiff)
+
+
+    #plot2DMarginals(inferDist,titles,base_PATH)
+
+    
 
     """
+    percDiff = (thetaDist - paramList)*100/thetaDist
+    plotHist(percDiff,titles,base_PATH)
+
     infers = []
     refs = []
     dataList = GenPreds(base_PATH, iters)
@@ -150,3 +150,24 @@ if __name__ == "__main__":
     valCNF("/raid/vigneshk/Models/NOvACNF/", 1)
 
 
+
+"""
+batch_test = DataLoader(dataTest,batch_size=100,shuffle = False)
+
+testData = []
+
+with torch.no_grad():
+  for x_batch in tqdm(batch_test):
+    x = x_batch.to(device)
+    cnfP_en = encodeModel._encode(x)
+    cnfP_en = (cnfP_en - latent_mean)/(latent_std + EPSILON)
+    samples = CNFModel.flow.sample(1,context=cnfP_en).cpu().numpy()
+    sample_cut = samples.reshape(-1,samples.shape[-1])
+    testData.append(sample_cut)
+
+    
+    thetaDist = np.concatenate(testData,axis=0)
+    thetaDist = (thetaDist * thetaStd) + thetaMean
+    paramsTest = (paramsTest * thetaStd) + thetaMean
+
+"""

@@ -27,7 +27,7 @@ data_latent_Standard = (data_latent - latent_Mean)/(latent_std + EPSILON)
 
 def prepare_Model(rank : int, hyper_params : dict):
     n_features = int(thetaStandard.shape[1])
-    n_layers = 8
+    n_layers = 6
     hidden_features = 25
     contextF = int(data_latent_Standard.shape[1])
     num_bins = 16
@@ -127,7 +127,7 @@ if __name__ == "__main__":
     
     if runVal == "True" :
         print(runVal)
-        valCNF(PATH)
+        valCNF(PATH,1)
 
 
 
