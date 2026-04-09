@@ -3,10 +3,22 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pickle
 import torch
-from sklearn.cluster import MeanShift, estimate_bandwidth
+from sklearn.cluster import MeanShift, estimate_bandwidth, KMeans
+from sklearn.neighbors import NearestNeighbors
 from matplotlib.ticker import MaxNLocator
 
 
+def ModeKNN(points, k=20):
+    nbrs = NearestNeighbors(n_neighbors=k).fit(points)
+    distances, _ = nbrs.kneighbors(points)
+
+    idx = np.argmin(distances.mean(axis=1))
+    return points[idx]
+
+def ModeKMeans(thetaDist : np.array):
+    kmeans = KMeans(n_clusters=2, random_state=0, n_init="auto").fit(thetaDist)
+
+    return kmeans.cluster_centers_
 
 EPSILON = 1e-4
 
@@ -27,7 +39,7 @@ def findMode(thetaDist : np.array):
 
 def ModeMeanShift(thetaDist: np.array, smoothing: float, minRatio: int):
 
-    bandwidth = estimate_bandwidth(thetaDist, quantile=0.2, n_samples=500) * smoothing
+    bandwidth = estimate_bandwidth(thetaDist, quantile=0.2, n_samples=1000) * smoothing
     min_freq = int(thetaDist.shape[0] / minRatio)
 
     ms = MeanShift(
@@ -39,7 +51,8 @@ def ModeMeanShift(thetaDist: np.array, smoothing: float, minRatio: int):
 
     ms.fit(thetaDist)
     return ms.cluster_centers_
-def plot2DMarginals(thetaDist : np.array, titles : list, base_PATH : str):
+
+def plot2DMarginals(truth : np.array, thetaDist : np.array, titles : list, base_PATH : str):
 
     iterations = thetaDist.shape[1]
     
@@ -47,17 +60,27 @@ def plot2DMarginals(thetaDist : np.array, titles : list, base_PATH : str):
     
     for i in range(iterations):
         x = thetaDist[:,i]
+        trueX = truth[i]
         titleX = titles[i]
         for j in range(i+1,iterations):
             y = thetaDist[:,j]
+            trueY = truth[j]
             titleY = titles[j]
             title = f"{titleX} vs {titleY}"
             imagePath = base_PATH + title + ".png"
-
             plt.figure()            
-            _, xeds, yeds, _ = plt.hist2d(x,y,bins=100)
-            print(f"{titleX} : [{xeds[0]}, {xeds[-1]}]")
-            print(f"{titleY} : [{yeds[0]}, {yeds[-1]}]\n")
+            H, xeds, yeds, _ = plt.hist2d(x,y,bins=100,cmap='viridis')
+            plt.axvline(x=trueX, linestyle='--',color='red')
+            plt.axhline(y=trueY, linestyle='--',color='red')
+            idx = np.unravel_index(np.argmax(H),H.shape)
+            modeXCol = (xeds[idx[0]] + xeds[idx[0]+1])/2
+            modeYRow = (yeds[idx[1]] + yeds[idx[1]+1])/2
+            print("")
+            print(f"idx : {idx}")
+            print(f"{titleX} : [{xeds[0]}, {xeds[-1]}] -> {modeXCol}")
+            print(f"{titleY} : [{yeds[0]}, {yeds[-1]}] -> {modeYRow}")
+            print("")
+
             plt.colorbar(label='Frequency of points')
             plt.xlabel(titleX)
             plt.ylabel(titleY)

@@ -1,6 +1,6 @@
 from modelClasses import CNF, autoEncoder
 from generateDataFuncs import generateTrainingData, Compare_Theta, gauss, plots, doubleGaussCDF, generatePoissonData
-from validatePlots import plotHist, ModeMeanShift, plot2DMarginals
+from validatePlots import plotHist, ModeMeanShift, plot2DMarginals, ModeKMeans, ModeKNN
 
 import torch
 import numpy as np
@@ -55,11 +55,6 @@ def GenPreds(base_PATH : str, iters : int):
     dataTestForDraw = dataTest[::100,:][0]
     paramsTestForDraw = paramsTest[::100,:][0]
 
-    #dataTestForDraw = dataTest[0]
-    #paramsTestForDraw = paramsTest[0]
-
-    #print(paramsTestForDraw)
-    #print(dataTestForDraw)
     dataTestForDraw = dataTestForDraw.unsqueeze(0)
 
     with torch.no_grad():
@@ -73,9 +68,12 @@ def GenPreds(base_PATH : str, iters : int):
         sample_cut = samples.reshape(-1,samples.shape[-1])
 
     paramRet = (paramsTestForDraw * (thetaStd + EPSILON)) + thetaMean
-    inferRet = ModeMeanShift(sample_cut,smoothing=1,minRatio = 100)
+    inferRet = (sample_cut * (thetaStd + EPSILON)) + thetaMean
+    #inferMeanShift = ModeMeanShift(sample_cut,smoothing=1,minRatio = 20)
+    #inferKNN = ModeKNN(sample_cut)
 
-    inferRet = (inferRet * (thetaStd + EPSILON)) + thetaMean
+    #inferMeanShift = (inferMeanShift * (thetaStd + EPSILON)) + thetaMean
+    #inferKNN = (inferKNN * (thetaStd + EPSILON)) + thetaMean
          
 
     return paramRet, inferRet
@@ -89,18 +87,18 @@ def valCNF(base_PATH : str, iters : int):
     binEdges = np.linspace(0.4,20.4,len(rawBins)+1)
     titles = ["Delta_24","SinSq_24","SinSq_34","Theta_23","DMsq_41","DMsq_32"]    
 
-    params, inferDist = GenPreds(base_PATH,iters)
-
+    params, inferRet = GenPreds(base_PATH,iters)
+    #inference = ModeMeanShift(inferDist,smoothing=2,minRatio = 100)
 
     print(params)
-    print(inferDist)
+    #print(inferMeanShift)
+    #print(inferKMeans)
 
-    percDiff = (params - inferDist)*100/params
+    #percDiff = (params - inferDist)*100/params
 
-    print(percDiff)
+    #print(percDiff)
 
-
-    #plot2DMarginals(inferDist,titles,base_PATH)
+    plot2DMarginals(params,inferRet,titles,base_PATH)
 
     
 
