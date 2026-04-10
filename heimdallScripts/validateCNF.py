@@ -25,10 +25,7 @@ def GenPreds(base_PATH : str, iters : int):
     latent_std = torch.tensor(np.load("/raid/vigneshk/data/latentStd.npy")).float().to(device)  
 
     thetaMean = np.load("/raid/vigneshk/data/paramsMean.npy")
-    thetaStd = np.load("/raid/vigneshk/data/paramsStd.npy")
-
-
-    #TODO: Try it this way, if not great then you will need to shuffle only test data set, or generate more data or something
+    thetaStd = np.load("/raid/vigneshk/data/paramsStd.npy") 
 
     dataTest = torch.tensor(np.load("/raid/vigneshk/data/dataTest.npy")).float()
     paramsTest = np.load("/raid/vigneshk/data/paramsTest.npy")
@@ -45,47 +42,41 @@ def GenPreds(base_PATH : str, iters : int):
     CNFModel.load_state_dict(ckpt_CNF["CNF_Model"])
     CNFModel.eval()
     CNFModel = CNFModel.to(device)
-
+    
     encodeModel = autoEncoder(148,74,49)
     ckpt_AE  = torch.load(base_PATH + "AE_checkpoint.pt", map_location=device)
     encodeModel.load_state_dict(ckpt_AE["AE_Model"])
     encodeModel.eval()
     encodeModel = encodeModel.to(device)
 
-    dataTestForDraw = dataTest[::100,:][0]
-    paramsTestForDraw = paramsTest[::100,:][0]
+    batches = DataLoader(dataTest,batch_size=100,shuffle = False)
+    trueParams = paramsTest[::100,:] #TODO : Need to breadcast to *5000 sample size and return that object. 
 
-    dataTestForDraw = dataTestForDraw.unsqueeze(0)
-
+    centerVals = []
+    
     with torch.no_grad():
-        x = dataTestForDraw.to(device)
-        enData = encodeModel._encode(x)
-        enData = (enData - latent_mean)/(latent_std + EPSILON)
-        samples = CNFModel.flow.sample(50000,context=enData).cpu().numpy()
-        sample_cut = samples.reshape(-1,samples.shape[-1])
+        for i,b in tqdm(enumerate(batches)):
+            x = b.to(device)
+            enData = encodeModel._encode(x)
+            enData = (enData - latent_mean)/(latent_std + EPSILON)
+            samples = CNFModel.flow.sample(5000,context=enData).cpu().numpy()
+            sample_cut = samples.reshape(-1,samples.shape[-1])
+            infer = ModeDBScan(sample_cut,0.5,100)
+            infer = (infer * (thetaStd + EPSILON)) + thetaMean
+            centerVals.append([trueParams[i],infer])   
 
-    paramRet = (paramsTestForDraw * (thetaStd + EPSILON)) + thetaMean
-    #inferRet = (sample_cut * (thetaStd + EPSILON)) + thetaMean
-    inferRet = ModeDBScan(sample_cut,0.5,100)
-    inferRet = (inferRet * (thetaStd + EPSILON)) + thetaMean         
-
-    return paramRet, inferRet
+    return centerVals
 
                 
 
 def valCNF(base_PATH : str, iters : int):
 
-
-    rawBins = np.arange(0.5,20.5,0.2)
-    binEdges = np.linspace(0.4,20.4,len(rawBins)+1)
     titles = ["Delta_24","SinSq_24","SinSq_34","Theta_23","DMsq_41","DMsq_32"]    
-
     params, inferRet = GenPreds(base_PATH,iters)
     print(params)
     print(inferRet)
-    #print(inferKMeans)
 
-    #percDiff = (params - inferDist)*100/params
+    percDiff = (params - inferDist)*100/params
 
     #print(percDiff)
 
@@ -94,6 +85,14 @@ def valCNF(base_PATH : str, iters : int):
     
 
     """
+    rawBins = np.arange(0.5,20.5,0.2)
+    binEdges = np.linspace(0.4,20.4,len(rawBins)+1)
+
+    dataTestForDraw = dataTest[::100,:][0]
+    paramsTestForDraw = paramsTest[::100,:][0]
+
+    dataTestForDraw = dataTestForDraw.unsqueeze(0)
+
     percDiff = (thetaDist - paramList)*100/thetaDist
     plotHist(percDiff,titles,base_PATH)
 
@@ -141,7 +140,6 @@ if __name__ == "__main__":
 
 
 """
-batch_test = DataLoader(dataTest,batch_size=100,shuffle = False)
 
 testData = []
 
