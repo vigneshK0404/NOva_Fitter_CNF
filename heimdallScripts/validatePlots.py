@@ -3,22 +3,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pickle
 import torch
-from sklearn.cluster import MeanShift, estimate_bandwidth, KMeans
-from sklearn.neighbors import NearestNeighbors
+from sklearn.cluster import MeanShift, estimate_bandwidth, DBSCAN
 from matplotlib.ticker import MaxNLocator
 
 
-def ModeKNN(points, k=20):
-    nbrs = NearestNeighbors(n_neighbors=k).fit(points)
-    distances, _ = nbrs.kneighbors(points)
 
-    idx = np.argmin(distances.mean(axis=1))
-    return points[idx]
-
-def ModeKMeans(thetaDist : np.array):
-    kmeans = KMeans(n_clusters=2, random_state=0, n_init="auto").fit(thetaDist)
-
-    return kmeans.cluster_centers_
 
 EPSILON = 1e-4
 
@@ -35,6 +24,30 @@ def findMode(thetaDist : np.array):
         modeVals.append(mode.item())
 
     return np.array(modeVals)
+
+def ModeDBScan(thetaDist : np.array, clusterDist : float, min_samples : int):
+    db = DBSCAN(eps = clusterDist, min_samples = min_samples).fit(thetaDist)
+    uniqueClusters = set(db.labels_)
+    uniqueClusters.discard(-1)
+    
+    centers = []
+    lens = []
+
+    for i in uniqueClusters:
+        mask = db.labels_ == i
+        cluster = thetaDist[mask]
+        lens.append(cluster.shape[0])
+        clusterCentroid = np.mean(cluster,axis=0)
+        centers.append(clusterCentroid)
+        
+
+    centers = np.array(centers)
+    lens = np.array(lens)
+
+    idx = np.argmax(lens)
+
+    return centers[idx]
+
 
 
 def ModeMeanShift(thetaDist: np.array, smoothing: float, minRatio: int):

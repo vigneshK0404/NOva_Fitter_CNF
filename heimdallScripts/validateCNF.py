@@ -1,6 +1,6 @@
 from modelClasses import CNF, autoEncoder
 from generateDataFuncs import generateTrainingData, Compare_Theta, gauss, plots, doubleGaussCDF, generatePoissonData
-from validatePlots import plotHist, ModeMeanShift, plot2DMarginals, ModeKMeans, ModeKNN
+from validatePlots import plotHist, ModeMeanShift, plot2DMarginals, ModeDBScan
 
 import torch
 import numpy as np
@@ -61,20 +61,13 @@ def GenPreds(base_PATH : str, iters : int):
         x = dataTestForDraw.to(device)
         enData = encodeModel._encode(x)
         enData = (enData - latent_mean)/(latent_std + EPSILON)
-
-        #print(enData.shape)
-        samples = CNFModel.flow.sample(10000,context=enData).cpu().numpy()
-        #print(samples)
+        samples = CNFModel.flow.sample(50000,context=enData).cpu().numpy()
         sample_cut = samples.reshape(-1,samples.shape[-1])
 
     paramRet = (paramsTestForDraw * (thetaStd + EPSILON)) + thetaMean
-    inferRet = (sample_cut * (thetaStd + EPSILON)) + thetaMean
-    #inferMeanShift = ModeMeanShift(sample_cut,smoothing=1,minRatio = 20)
-    #inferKNN = ModeKNN(sample_cut)
-
-    #inferMeanShift = (inferMeanShift * (thetaStd + EPSILON)) + thetaMean
-    #inferKNN = (inferKNN * (thetaStd + EPSILON)) + thetaMean
-         
+    #inferRet = (sample_cut * (thetaStd + EPSILON)) + thetaMean
+    inferRet = ModeDBScan(sample_cut,0.5,100)
+    inferRet = (inferRet * (thetaStd + EPSILON)) + thetaMean         
 
     return paramRet, inferRet
 
@@ -88,17 +81,15 @@ def valCNF(base_PATH : str, iters : int):
     titles = ["Delta_24","SinSq_24","SinSq_34","Theta_23","DMsq_41","DMsq_32"]    
 
     params, inferRet = GenPreds(base_PATH,iters)
-    #inference = ModeMeanShift(inferDist,smoothing=2,minRatio = 100)
-
     print(params)
-    #print(inferMeanShift)
+    print(inferRet)
     #print(inferKMeans)
 
     #percDiff = (params - inferDist)*100/params
 
     #print(percDiff)
 
-    plot2DMarginals(params,inferRet,titles,base_PATH)
+    #plot2DMarginals(params,inferRet,titles,base_PATH)
 
     
 
