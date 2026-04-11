@@ -50,22 +50,22 @@ def GenPreds(base_PATH : str, iters : int):
     encodeModel = encodeModel.to(device)
 
     batches = DataLoader(dataTest,batch_size=100,shuffle = False)
-    trueParams = paramsTest[::100,:] #TODO : Need to breadcast to *5000 sample size and return that object. 
+    trueParams = paramsTest[::100,:] 
 
     centerVals = []
     
     with torch.no_grad():
-        for i,b in tqdm(enumerate(batches)):
+        for b in tqdm(batches):
             x = b.to(device)
             enData = encodeModel._encode(x)
             enData = (enData - latent_mean)/(latent_std + EPSILON)
-            samples = CNFModel.flow.sample(5000,context=enData).cpu().numpy()
+            samples = CNFModel.flow.sample(1000,context=enData).cpu().numpy()
             sample_cut = samples.reshape(-1,samples.shape[-1])
-            infer = ModeDBScan(sample_cut,0.5,100)
+            infer = ModeDBScan(sample_cut,0.5,150)
             infer = (infer * (thetaStd + EPSILON)) + thetaMean
-            centerVals.append([trueParams[i],infer])   
+            centerVals.append(infer)   
 
-    return centerVals
+    return trueParams, np.array(centerVals)
 
                 
 
@@ -77,8 +77,9 @@ def valCNF(base_PATH : str, iters : int):
     print(inferRet)
 
     percDiff = (params - inferDist)*100/params
+    print(percDiff)
 
-    #print(percDiff)
+    plotHist(percDiff,titles,base_PATH)
 
     #plot2DMarginals(params,inferRet,titles,base_PATH)
 
