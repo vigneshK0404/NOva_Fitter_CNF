@@ -21,8 +21,8 @@ def GenPreds(base_PATH : str, iters : int):
     device = torch.device(f"cuda:{dnumber}" if torch.cuda.is_available() else "cpu")
     print(device) 
 
-    latent_mean = torch.tensor(np.load("/raid/vigneshk/data/latentMean.npy")).float().to(device)
-    latent_std = torch.tensor(np.load("/raid/vigneshk/data/latentStd.npy")).float().to(device)  
+    #latent_mean = torch.tensor(np.load("/raid/vigneshk/data/latentMean.npy")).float().to(device)
+    #latent_std = torch.tensor(np.load("/raid/vigneshk/data/latentStd.npy")).float().to(device)  
 
     thetaMean = np.load("/raid/vigneshk/data/paramsMean.npy")
     thetaStd = np.load("/raid/vigneshk/data/paramsStd.npy") 
@@ -30,43 +30,68 @@ def GenPreds(base_PATH : str, iters : int):
     dataTest = torch.tensor(np.load("/raid/vigneshk/data/dataTest.npy")).float()
     paramsTest = np.load("/raid/vigneshk/data/paramsTest.npy")
 
+    #print(dataTest)
+    #print(paramsTest)
+
     CNFModel = CNF(n_features=6, #6
-                   context_features=49, 
+                   context_features=148, #TODO : change back to 49
                    n_layers = 6,
                    hidden_features = 25,
                    num_bins = 16,
                    tails = "linear",
-                   tail_bound = 3.5) 
+                   tail_bound = 5) 
 
     ckpt_CNF  = torch.load(base_PATH + "CNF_checkpoint.pt", map_location=device)
     CNFModel.load_state_dict(ckpt_CNF["CNF_Model"])
     CNFModel.eval()
     CNFModel = CNFModel.to(device)
     
+    """
     encodeModel = autoEncoder(148,74,49)
     ckpt_AE  = torch.load(base_PATH + "AE_checkpoint.pt", map_location=device)
     encodeModel.load_state_dict(ckpt_AE["AE_Model"])
     encodeModel.eval()
     encodeModel = encodeModel.to(device)
 
+    trueParams = paramsTest[::100,:][1]
+    testData = dataTest[100:200,:].to(device)
+
+    print(testData.shape)
+
+    with torch.no_grad():
+        #enData = encodeModel._encode(testData)
+        #enData = (enData - latent_mean)/(latent_std + EPSILON)
+        samples = CNFModel.flow.sample(500,context=testData).cpu().numpy()
+        sample_cut = samples.reshape(-1,samples.shape[-1])
+        infer = ModeDBScan(sample_cut,0.5,150)
+        infer = (infer * (thetaStd + EPSILON)) + thetaMean
+
+    trueParams = (trueParams * (thetaStd + EPSILON)) + thetaMean
+
+
+    return trueParams, infer
+
+    """
     batches = DataLoader(dataTest,batch_size=100,shuffle = False)
-    trueParams = paramsTest[::100,:] 
+    trueParams = (paramsTest[::100,:] * (thetaStd + EPSILON)) + thetaMean
 
     centerVals = []
-    
+    #idx = 0
     with torch.no_grad():
         for b in tqdm(batches):
             x = b.to(device)
-            enData = encodeModel._encode(x)
-            enData = (enData - latent_mean)/(latent_std + EPSILON)
-            samples = CNFModel.flow.sample(1000,context=enData).cpu().numpy()
+            samples = CNFModel.flow.sample(300,context=x).cpu().numpy()
             sample_cut = samples.reshape(-1,samples.shape[-1])
-            infer = ModeDBScan(sample_cut,0.5,150)
+            infer = ModeDBScan(sample_cut,0.5,50)
             infer = (infer * (thetaStd + EPSILON)) + thetaMean
-            centerVals.append(infer)   
+            #print(trueParams[idx])
+            #print(infer)
+            #print("\n")
+            #idx += 1
+
+            centerVals.append(infer)  
 
     return trueParams, np.array(centerVals)
-
                 
 
 def valCNF(base_PATH : str, iters : int):
@@ -76,7 +101,7 @@ def valCNF(base_PATH : str, iters : int):
     print(params)
     print(inferRet)
 
-    percDiff = (params - inferDist)*100/params
+    percDiff = (params - inferRet)*100/params
     print(percDiff)
 
     plotHist(percDiff,titles,base_PATH)
@@ -136,7 +161,7 @@ def valCNF(base_PATH : str, iters : int):
 
 
 if __name__ == "__main__":
-    valCNF("/raid/vigneshk/Models/NOvACNF/", 1)
+    valCNF("/raid/vigneshk/Models/NOvACNF_NoAE/", 1)
 
 
 

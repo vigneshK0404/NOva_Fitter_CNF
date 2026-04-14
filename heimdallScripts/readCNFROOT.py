@@ -35,12 +35,23 @@ def getSterileData(base_path : str):
     paramsStd = np.std(params_unique,axis = 0,ddof=0)
     params = (params - params_mean)/(paramsStd+EPSILON)
 
+
     print("Standardized Thetas")
 
+    binList = [22,22,22,22,14,14,13,13,6]
     data_AT = 2 * np.sqrt(data + 3/8)
-    data_AT_mean = np.mean(data_AT , axis = 0)
-    data_AT_std = np.std(data_AT, axis=0, ddof=0)
-    data_AT = (data_AT - data_AT_mean) / (data_AT_std + EPSILON)
+
+    slices = []
+    index = 0
+    
+    for i in binList:
+        slicedData = data_AT[:,index:i+index]
+        index += i
+        slicedMean = np.mean(slicedData , axis = 0)
+        slicedStd = np.std(slicedData, axis=0, ddof=0)
+        slices.append((slicedData - slicedMean) / (slicedStd + EPSILON))
+
+    data_AT = np.concatenate(slices,axis=1)
 
     print("Standardized Data")
 
@@ -64,18 +75,15 @@ def getSterileData(base_path : str):
     np.save(dataSaveTest,data_test)
 
     np.save(paramsSaveTrain,param_train)
-    np.save(paramsSaveTest,param_test)
-
-    np.save(dataSaveMean,data_AT_mean)
-    np.save(dataSaveStd,data_AT_std)
+    np.save(paramsSaveTest,param_test)    
 
     np.save(paramsSaveMean,params_mean)
     np.save(paramsSaveStd,paramsStd)
 
     print("Complete")
 
-    #print(data_train)
-    #print((param_test * paramsStd) + params_mean)
+    print(param_test)
+    print(data_test)
 
        
 
