@@ -17,21 +17,15 @@ from validateCNF import valCNF
 
 EPSILON = 1e-4
 
-#data_latent = torch.tensor(np.load("/raid/vigneshk/data/dataEncoded.npy")).float()
-#latent_std = torch.tensor(np.load("/raid/vigneshk/data/latentStd.npy")).float()
-#latent_Mean = torch.tensor(np.load("/raid/vigneshk/data/latentMean.npy")).float()
-#data_latent_Standard = (data_latent - latent_Mean)/(latent_std + EPSILON)
-
-
 data = torch.tensor(np.load("/raid/vigneshk/data/dataTrain.npy")).float()
 thetaStandard = torch.tensor(np.load("/raid/vigneshk/data/paramsTrain.npy")).float()
 
 def prepare_Model(rank : int, hyper_params : dict):
     n_features = int(thetaStandard.shape[1])
-    n_layers = 6
-    hidden_features = 25
-    contextF = int(data.shape[1]) #TODO : change shape back to latent
-    num_bins = 16
+    n_layers = 8
+    hidden_features = 64
+    contextF = 22 #int(data.shape[1])
+    num_bins = 24
     tails = "linear"
     tail_bound = 5
 
@@ -53,13 +47,11 @@ def prepare_Model(rank : int, hyper_params : dict):
                 }
 
         uniqueLayers = int(len(cnf.transforms) / n_layers)
-        #print(f"total unique: {uniqueLayers}")
-
+       
         temp_idx = 0
         temp_str = str()
      
         for layer_idx in range(uniqueLayers):
-            #print(f"Layer: {layer_idx}")
             temp_str = str(cnf.transforms[layer_idx])
             temp_idx = temp_str.find("(")
             temp["Layer Type"].append(temp_str[:temp_idx])
@@ -67,7 +59,6 @@ def prepare_Model(rank : int, hyper_params : dict):
         hyper_params.update(temp)
         print(f"prepareModel : {hyper_params}")
 
-    #print(f"data:{n_features}, context:{contextF}")
     return cnf
 
 def prepare_dataloader(dataset: Dataset, batch_size: int):
@@ -84,7 +75,7 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hy
     ddp_setup(rank, world_size)
     CNFmodel = prepare_Model(rank, hyper_params)
     CNFmodel = CNFmodel.train()
-    dataset = trainingDataSet(thetaStandard,data) #TODO : change back to data_latent
+    dataset = trainingDataSet(thetaStandard,data[:,:22])
     train_data = prepare_dataloader(dataset, batch_size)
     trainer = CNF_trainer(CNFmodel, train_data, rank, batch_size)  
 
@@ -105,7 +96,7 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hy
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()
     batch_size = 512
-    total_epochs = 7
+    total_epochs = 15
 
     args = sys.argv
     runVal = args[1]
