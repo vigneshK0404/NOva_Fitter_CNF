@@ -27,8 +27,8 @@ def GenPreds(base_PATH : str, iters : int):
     dataTest = torch.tensor(np.load("/raid/vigneshk/data/dataTest.npy")).float()
     paramsTest = np.load("/raid/vigneshk/data/paramsTest.npy")
 
-    CNFModel = CNF(n_features=6, #6
-                   context_features=148,
+    CNFModel = CNF(n_features=int(paramsTest.shape[1]),
+                   context_features=int(dataTest.shape[1]),
                    n_layers = 8,
                    hidden_features = 25,
                    num_bins = 16,
@@ -61,7 +61,7 @@ def GenPreds(base_PATH : str, iters : int):
     return trueParams, infer
 
     """
-    batches = DataLoader(dataTest,batch_size=1,shuffle = False)
+    batches = DataLoader(dataTest,batch_size=10,shuffle = False)
     trueParams = (paramsTest * (thetaStd + EPSILON)) + thetaMean
     
 
@@ -70,8 +70,7 @@ def GenPreds(base_PATH : str, iters : int):
     with torch.no_grad():
         for b in tqdm(batches): #batch
             x = b.to(device)
-            x = torch.clamp(x, -8, 8)
-            samples = CNFModel.flow.sample(5000,context=x).cpu().numpy()
+            samples = CNFModel.flow.sample(500,context=x).cpu().numpy()
             sample_cut = samples.reshape(-1,samples.shape[-1])
             infer = ModeDBScan(sample_cut,0.5,5)
             infer = (infer * (thetaStd + EPSILON)) + thetaMean
@@ -97,6 +96,6 @@ def valCNF(base_PATH : str, iters : int):
 
 
 if __name__ == "__main__":
-    valCNF("/raid/vigneshk/Models/NOvACNF_NoAE/", 1)
+    valCNF("/raid/vigneshk/Models/NOvACNF_LogData/", 1)
 
 

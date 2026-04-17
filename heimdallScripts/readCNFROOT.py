@@ -1,8 +1,8 @@
 import numpy as np
 import uproot
 
-repeatSample = 1
-uniqueSample = 10000
+repeatSample = 10
+uniqueSample = 100000
 EPSILON = 1e-3
 
 def standardize(theta : np.array, data : np.array):
@@ -75,7 +75,7 @@ def getSterileData(base_path : str):
     paramsSaveStd = base_path + "paramsStd"
 
 
-    file = uproot.open(base_path + "CNFData_0_500000.root")
+    file = uproot.open(base_path + "CNFData_0_100000.root")
     tree = file["Experimental_Data_Tree"]
     branches = tree.arrays()
 

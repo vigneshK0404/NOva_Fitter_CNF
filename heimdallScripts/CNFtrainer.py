@@ -95,7 +95,7 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hy
 
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()
-    batch_size = 256
+    batch_size = 512
     total_epochs = 30
 
     args = sys.argv
