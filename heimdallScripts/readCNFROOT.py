@@ -1,7 +1,7 @@
 import numpy as np
 import uproot
 
-repeatSample = 100
+repeatSample = 1
 uniqueSample = 10000
 EPSILON = 1e-3
 
@@ -11,23 +11,55 @@ def standardize(theta : np.array, data : np.array):
     theta_std = np.std(theta_unique,axis = 0,ddof=0)
     theta = (theta - theta_mean)/(theta_std + EPSILON)
 
+    #print(theta[np.abs(theta) > 3.5])
+
     binList = [22,22,22,22,14,14,13,13,6]
     data_AT = 2 * np.sqrt(data + 3/8)
 
     slices = []
     index = 0
+
+    meanSlices = []
+    stdSlices = []
     
     for i in binList:
         slicedData = data_AT[:,index:i+index]
         index += i
         slicedMean = np.mean(slicedData , axis = 0)
         slicedStd = np.std(slicedData, axis=0, ddof=0)
+        meanSlices.append(slicedMean)
+        stdSlices.append(slicedStd)
         slices.append((slicedData - slicedMean) / (slicedStd + EPSILON))
 
     data_AT = np.concatenate(slices,axis=1)
 
-    return theta , theta_mean, theta_std, data_AT
+    return theta , theta_mean, theta_std, data_AT , meanSlices, stdSlices
 
+
+def applyStd(theta : np.array, theta_mean : np.array, 
+             theta_std : np.array, data : np.array, 
+             meanSlices : list, stdSlices : list):
+
+    theta = (theta - theta_mean)/(theta_std + EPSILON)
+
+    binList = [22,22,22,22,14,14,13,13,6]
+    data_AT = 2 * np.sqrt(data + 3/8)
+
+    slices = []
+    index = 0
+
+    idx = 0 
+    for i in binList:
+        slicedData = data_AT[:,index:i+index]
+        index += i      
+        slices.append((slicedData - meanSlices[idx]) / (stdSlices[idx] + EPSILON))
+        idx += 1
+
+    data_AT = np.concatenate(slices,axis=1)
+
+    return theta, data_AT
+
+    
 
 
 
@@ -43,7 +75,7 @@ def getSterileData(base_path : str):
     paramsSaveStd = base_path + "paramsStd"
 
 
-    file = uproot.open(base_path + "CNFData_0_500.root")
+    file = uproot.open(base_path + "CNFData_0_500000.root")
     tree = file["Experimental_Data_Tree"]
     branches = tree.arrays()
 
@@ -62,11 +94,11 @@ def getSterileData(base_path : str):
     print("Split training and testing data 80/20")
 
     
-    theta_train,_,_,data_train = standardize(param_train, data_train)
+    theta_train,theta_mean,theta_std,data_train, meanSlices, stdSlices = standardize(param_train, data_train)
 
     print("Standardized Train")
 
-    theta_test,theta_Testmean,theta_Teststd,data_test = standardize(param_test, data_test)  
+    theta_test,data_test = applyStd(param_test, theta_mean, theta_std, data_test, meanSlices, stdSlices)  
 
     print("Standardized Test")    
 
@@ -83,8 +115,8 @@ def getSterileData(base_path : str):
     np.save(paramsSaveTrain,theta_train)
     np.save(paramsSaveTest,theta_test)    
 
-    np.save(paramsSaveMean,theta_Testmean)
-    np.save(paramsSaveStd,theta_Teststd)
+    np.save(paramsSaveMean,theta_mean)
+    np.save(paramsSaveStd,theta_std)
 
     print("Complete")
 

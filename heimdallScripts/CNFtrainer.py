@@ -15,7 +15,7 @@ from pathlib import Path
 from validateCNF import valCNF
 
 
-EPSILON = 1e-4
+EPSILON = 1e-3
 
 data = torch.tensor(np.load("/raid/vigneshk/data/dataTrain.npy")).float()
 thetaStandard = torch.tensor(np.load("/raid/vigneshk/data/paramsTrain.npy")).float()
@@ -23,11 +23,11 @@ thetaStandard = torch.tensor(np.load("/raid/vigneshk/data/paramsTrain.npy")).flo
 def prepare_Model(rank : int, hyper_params : dict):
     n_features = int(thetaStandard.shape[1])
     n_layers = 8
-    hidden_features = 64
-    contextF = 22 #int(data.shape[1])
-    num_bins = 24
+    hidden_features = 25
+    contextF = int(data.shape[1])
+    num_bins = 16
     tails = "linear"
-    tail_bound = 5
+    tail_bound = 3.5
 
     cnf = CNF(n_features,
               context_features= contextF,
@@ -75,7 +75,7 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hy
     ddp_setup(rank, world_size)
     CNFmodel = prepare_Model(rank, hyper_params)
     CNFmodel = CNFmodel.train()
-    dataset = trainingDataSet(thetaStandard,data[:,:22])
+    dataset = trainingDataSet(thetaStandard,data)
     train_data = prepare_dataloader(dataset, batch_size)
     trainer = CNF_trainer(CNFmodel, train_data, rank, batch_size)  
 
@@ -95,8 +95,8 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hy
 
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()
-    batch_size = 512
-    total_epochs = 15
+    batch_size = 256
+    total_epochs = 30
 
     args = sys.argv
     runVal = args[1]
