@@ -1,9 +1,26 @@
 import numpy as np
 import uproot
+import matplotlib.pyplot as plt
 
 repeatSample = 10
 uniqueSample = 100000
 EPSILON = 1e-3
+
+def plotBinnedData(data : np.array, path : str):
+    binList = [22,22,22,22,14,14,13,13,6]
+
+    index = 0
+    idx = 0
+
+    for i in binList:
+        slicedData = data[index:i+index]
+        plt.bar(range(index,index+i),slicedData,color="C"+str(idx),edgecolor="black")         
+        idx += 1
+        index += i
+        #plt.clf()
+
+    plt.savefig(path+".png")
+
 
 def standardize(theta : np.array, data : np.array):
     theta_unique = theta[::repeatSample,:]
@@ -81,8 +98,9 @@ def getSterileData(base_path : str):
 
     print(tree.keys())
     data = np.array(branches["data"])
-    params = np.array(branches["params"]) 
+    params = np.array(branches["params"])
 
+    #plotBinnedData(data[-1],"plots/exampleDataSterile")
     print(f"Read Data \n data Shape: {data.shape} \n params Shape : {params.shape}")
 
     testTrainRatio = int(repeatSample * (0.8*uniqueSample))

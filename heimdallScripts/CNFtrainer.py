@@ -1,4 +1,4 @@
-from modelClasses import ddp_setup, CNF, CNF_trainer, trainingDataSet
+from modelClasses import ddp_setup, CNF, CNF_trainer, trainingDataSet , autoEncoder
 import torch
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
@@ -20,14 +20,24 @@ EPSILON = 1e-3
 data = torch.tensor(np.load("/raid/vigneshk/data/dataTrain.npy")).float()
 thetaStandard = torch.tensor(np.load("/raid/vigneshk/data/paramsTrain.npy")).float()
 
-def prepare_Model(rank : int, hyper_params : dict):
+def prepare_Models(rank : int, hyper_params : dict):
+    compressRatio = 0.68
+    middleRatio = 0.75
+
+    input_dim = int(data.shape[1])
+    middle_dim = int(data.shape[1]*middleRatio)
+    output_dim = int(data.shape[1]*compressRatio)
+
     n_features = int(thetaStandard.shape[1])
     n_layers = 8
     hidden_features = 25
-    contextF = int(data.shape[1])
+    contextF = output_dim
     num_bins = 16
     tails = "linear"
     tail_bound = 3.5
+
+    ae = autoEncoder(input_dim, middle_dim, output_dim)
+
 
     cnf = CNF(n_features,
               context_features= contextF,
@@ -43,7 +53,9 @@ def prepare_Model(rank : int, hyper_params : dict):
                 "Hidden Width" : hidden_features,
                 "spline_num_bins" : num_bins, 
                 "spline_tails" : tails, 
-                "spline_tail_bound" : tail_bound
+                "spline_tail_bound" : tail_bound,
+                "AE middle_dim" : middle_dim,
+                "AE output_dim" : output_dim
                 }
 
         uniqueLayers = int(len(cnf.transforms) / n_layers)
@@ -59,7 +71,7 @@ def prepare_Model(rank : int, hyper_params : dict):
         hyper_params.update(temp)
         print(f"prepareModel : {hyper_params}")
 
-    return cnf
+    return ae, cnf
 
 def prepare_dataloader(dataset: Dataset, batch_size: int):
     return DataLoader(
@@ -73,11 +85,12 @@ def prepare_dataloader(dataset: Dataset, batch_size: int):
 def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hyper_params : dict, base_PATH : str):
     hyper_params = dict(base_hyper_params)
     ddp_setup(rank, world_size)
-    CNFmodel = prepare_Model(rank, hyper_params)
+    AEmodel, CNFmodel = prepare_Models(rank, hyper_params)
     CNFmodel = CNFmodel.train()
+    AEmodel = AEmodel.train()
     dataset = trainingDataSet(thetaStandard,data)
     train_data = prepare_dataloader(dataset, batch_size)
-    trainer = CNF_trainer(CNFmodel, train_data, rank, batch_size)  
+    trainer = CNF_trainer(AEmodel,CNFmodel, train_data, rank, batch_size)  
 
     if rank == 0:
         hyper_params["Optimizer"] = str(trainer.optimizer)

@@ -25,6 +25,13 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 import os
 
+def printNormGrad(parameters : torch.tensor):
+    total = 0
+    for p in parameters:
+        if p is not None:
+            total += p.grad.detach().norm(2).item()
+
+    return total**0.5
 
 
 def ddp_setup(rank : int, world_size: int):
@@ -47,93 +54,8 @@ class autoEncoder(torch.nn.Module):
             torch.nn.ReLU(),
             torch.nn.Linear(middle_dim,output_dim)
         )
-
-        self.decoder = torch.nn.Sequential(
-            torch.nn.Linear(output_dim,middle_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(middle_dim,input_dim),
-        )
-    def _encode(self,x):
-        return self.encoder(x)
-
-    def _decode(self,x):
-        return self.decoder(x)
-
     def forward(self,x):
-        eData = self._encode(x)
-        dData = self._decode(eData)
-        return dData
-
-
-class AE_trainer:
-    def __init__(
-            self,
-            AEModel : autoEncoder,
-            train_data: DataLoader,
-            gpu_id: int,
-            batch_size : int
-            ):
-        
-        self.gpu_id = gpu_id
-        self.AEModel = AEModel.to(gpu_id)
-        self.train_data = train_data
-        self.AEModel = DDP(self.AEModel, device_ids=[gpu_id])
-        self.r_losses = []
-        self.plotDir = "/raid/vigneshk/plots/"
-
-        #CAN CHANGE AE TRAINING PARAMETERS HERE
-
-        self.loss_fn = torch.nn.MSELoss() 
-        self.optimizer = torch.optim.Adam(self.AEModel.parameters(), lr = 1e-4)
-        self.batch_size = batch_size
-
-    def _run_batch(self, x_input, record_loss : bool):
-        self.optimizer.zero_grad()
-        y_true = self.AEModel(x_input)
-        loss = self.loss_fn(y_true,x_input)
-        loss.backward()
-        self.optimizer.step()
-
-        if record_loss:
-            return loss.item()
-        else :
-            return None
-        
-
-    def _run_epoch(self,epoch):
-        #b_size = len(next(iter(self.train_data))[0])        
-        print(f"[GPU{self.gpu_id}] Epoch {epoch} | Steps: {len(self.train_data)}")
-        self.train_data.sampler.set_epoch(epoch)
-        counter = 0
-        for x_batch in self.train_data:
-            counter += 1
-            x_batch = x_batch.to(self.gpu_id, non_blocking = True)
-            record_bool = ((counter % 10) == 0)
-            loss_rec = self._run_batch(x_batch,record_loss = record_bool)
-
-            if loss_rec is not None:
-                self.r_losses.append(loss_rec)
-                print(loss_rec)
-
-
-    def _train(self,max_epoch : int, PATH : str):
-        for epoch in tqdm(range(max_epoch)):
-            self._run_epoch(epoch)
-            if (epoch == max_epoch -1) and self.gpu_id == 0:
-                self._save_checkpoint(PATH)
-
-
-        plt.plot(self.r_losses)
-        plt.savefig(self.plotDir+"AELoss.png")
-
-    def _save_checkpoint(self,PATH : str):
-        torch.save({
-        "AE_Model": self.AEModel.module.state_dict(),
-        "AE_Optim": self.optimizer.state_dict(),
-        },  PATH + "AE_checkpoint.pt")
-
-        print(f"Training checkpoint saved at {PATH}")
-
+        return self.encoder(x)
 
 
 class trainingDataSet(Dataset):
@@ -186,6 +108,7 @@ class CNF(torch.nn.Module):
 
 class CNF_trainer():
     def __init__(self,
+                 AEModel : autoEncoder,
                  CNFModel : CNF,
                  train_data: DataLoader,
                  gpu_id: int,
@@ -194,8 +117,10 @@ class CNF_trainer():
 
         
         self.gpu_id = gpu_id
+        self.AEModel = AEModel.to(gpu_id)
         self.CNFModel = CNFModel.to(gpu_id)
         self.train_data = train_data
+        self.AEModel = DDP(self.AEModel, device_ids=[gpu_id])
         self.CNFModel = DDP(self.CNFModel, device_ids=[gpu_id])
         self.cnf_losses = []
         self.plotDir = "/raid/vigneshk/plots/"
@@ -203,16 +128,28 @@ class CNF_trainer():
         #CNF HYPER-PARAMS TO CHANGE
 
         
-        self.optimizer = torch.optim.Adam(self.CNFModel.parameters(), lr = 1e-3)
+        self.optimizer = torch.optim.Adam([
+            {"params": self.AEModel.parameters(), "lr": 1e-3}, 
+            {"params": self.CNFModel.parameters(), "lr": 1e-3}
+            ])
+
         self.batch_size = batch_size 
 
     def _run_batch(self, x_input, x_cond,record_loss : bool):
         self.optimizer.zero_grad()
-        nll = - self.CNFModel(x_input, context=x_cond)
+        z_cond = self.AEModel(x_cond)
+        nll = - self.CNFModel(x_input, context=z_cond)
         cnf_loss = nll.mean()
         cnf_loss.backward()
-    
-        torch.nn.utils.clip_grad_norm_(self.CNFModel.parameters(),max_norm = 1.0)
+
+        """
+        if self.gpu_id == 0 :
+            aeGrad = printNormGrad(self.AEModel.parameters())
+            cnfGrad = printNormGrad(self.CNFModel.parameters())
+            print(f"AE : {aeGrad} CNF : {cnfGrad} total : {(aeGrad*aeGrad+cnfGrad*cnfGrad)**0.5}")
+        """
+        
+        torch.nn.utils.clip_grad_norm_(self.CNFModel.parameters(),max_norm = 20.0)
 
         self.optimizer.step()
 
@@ -252,7 +189,9 @@ class CNF_trainer():
         torch.save({
         "CNF_Model": self.CNFModel.module.state_dict(),
         "CNF_Optim": self.optimizer.state_dict(),
-        },  PATH + "CNF_checkpoint.pt")
+        "AE_Model": self.AEModel.module.state_dict(),
+        "AE_Optim": self.optimizer.state_dict(),
+        },  PATH + "Model_checkpoint.pt")
 
         print(f"Training checkpoint saved at {PATH}")
 
