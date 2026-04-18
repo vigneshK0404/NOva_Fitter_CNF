@@ -43,14 +43,15 @@ def GenPreds(base_PATH : str, iters : int):
                    tail_bound = 3.5) 
 
     ckpt = torch.load(base_PATH + "Model_checkpoint.pt", map_location=device)
-    CNFModel.load_state_dict(ckpt_CNF["CNF_Model"])
+    CNFModel.load_state_dict(ckpt["CNF_Model"])
     CNFModel.eval()
     CNFModel = CNFModel.to(device)
 
-    AEModel.load_state_dict(ckpt_CNF["AE_Model"])
+    AEModel.load_state_dict(ckpt["AE_Model"])
     AEModel.eval()
     AEModel = AEModel.to(device)
- 
+
+    """ 
     trueParams = paramsTest[0]
     testData = dataTest[:10,:].to(device)
 
@@ -58,7 +59,7 @@ def GenPreds(base_PATH : str, iters : int):
 
     with torch.no_grad():
         enData = AEModel(testData)
-        samples = CNFModel.flow.sample(5000,context=enData).cpu().numpy()
+        samples = CNFModel.flow.sample(500,context=enData).cpu().numpy()
         sample_cut = samples.reshape(-1,samples.shape[-1])
         infer = ModeDBScan(sample_cut,0.5,5)
         infer = (infer * (thetaStd + EPSILON)) + thetaMean
@@ -77,28 +78,43 @@ def GenPreds(base_PATH : str, iters : int):
     with torch.no_grad():
         for b in tqdm(batches): #batch
             x = b.to(device)
-            samples = CNFModel.flow.sample(500,context=x).cpu().numpy()
+            x_en = AEModel(x)
+            samples = CNFModel.flow.sample(700,context=x_en).cpu().numpy()
             sample_cut = samples.reshape(-1,samples.shape[-1])
             infer = ModeDBScan(sample_cut,0.5,5)
             infer = (infer * (thetaStd + EPSILON)) + thetaMean
             centerVals.append(infer) 
 
     return trueParams, np.array(centerVals)
-    """
+
+
                 
 
 def valCNF(base_PATH : str, iters : int):
 
     titles = ["Delta_24","SinSq_24","SinSq_34","SinSq_23","DMsq_41","DMsq_32"]    
     params, inferRet = GenPreds(base_PATH,iters)
-    #np.save("/raid/vigneshk/inferenceResults",inferRet)
-    percDiff = (params - inferRet)*100/params
+    np.save("/raid/vigneshk/inferenceResults",inferRet)
+   
+    percList = []
+    for i in range(inferRet.shape[1]):
+        x = params[:,i]
+        y = inferRet[:,i]
+        if i in [1,2,4]:
+            x = pow(10,x)
+            y = pow(10,y)
+
+        diff = 100 * (y - x) / (np.abs(x) + np.abs(y) + 1e-12)
+        percList.append(diff)
+
+    percDiff = np.array(percList)
+
     print(params)
     print(inferRet)
-    print(percDiff)
+    print(f"Real : {percList}")
 
 
-    #plotHist(percDiff,titles,base_PATH)
+    plotHist(percDiff,titles,base_PATH)
 
     
 
@@ -106,6 +122,5 @@ def valCNF(base_PATH : str, iters : int):
 
 
 if __name__ == "__main__":
-    valCNF("/raid/vigneshk/Models/NOvACNF_LogData/", 1)
-
+    valCNF("/raid/vigneshk/Models/NOvACNF_AE/", 1)
 
