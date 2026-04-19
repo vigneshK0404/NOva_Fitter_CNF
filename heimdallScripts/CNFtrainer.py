@@ -21,8 +21,8 @@ data = torch.tensor(np.load("/raid/vigneshk/data/dataTrain.npy")).float()
 thetaStandard = torch.tensor(np.load("/raid/vigneshk/data/paramsTrain.npy")).float()
 
 def prepare_Models(rank : int, hyper_params : dict):
-    middleRatio = 0.90
-    compressRatio = 0.80
+    middleRatio = 0.75
+    compressRatio = 0.5
     
     input_dim = int(data.shape[1])
     middle_dim = int(data.shape[1]*middleRatio)
@@ -30,9 +30,9 @@ def prepare_Models(rank : int, hyper_params : dict):
 
     n_features = int(thetaStandard.shape[1])
     n_layers = 8
-    hidden_features = 25
+    hidden_features = 30
     contextF = output_dim
-    num_bins = 16
+    num_bins = 24
     tails = "linear"
     tail_bound = 3.5
 

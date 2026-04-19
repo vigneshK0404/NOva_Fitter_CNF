@@ -25,6 +25,8 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 import os
 
+EPSILON = 1e-3
+
 def printNormGrad(parameters : torch.tensor):
     total = 0
     for p in parameters:
@@ -138,6 +140,9 @@ class CNF_trainer():
     def _run_batch(self, x_input, x_cond,record_loss : bool):
         self.optimizer.zero_grad()
         z_cond = self.AEModel(x_cond)
+        #z_mean = z_cond.mean(dim=0)
+        #z_std = z_cond.std(dim=0,correction=1)
+        #z_condition = (z_cond - z_mean)/(z_std + EPSILON)
         nll = - self.CNFModel(x_input, context=z_cond)
         cnf_loss = nll.mean()
         cnf_loss.backward()

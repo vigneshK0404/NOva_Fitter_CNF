@@ -19,8 +19,8 @@ repeatSize = 10
 
 def GenPreds(base_PATH : str, iters : int):
 
-    middleRatio = 0.90
-    compressRatio = 0.80
+    middleRatio = 0.75
+    compressRatio = 0.5
 
     dnumber = 0
     device = torch.device(f"cuda:{dnumber}" if torch.cuda.is_available() else "cpu")
@@ -38,8 +38,8 @@ def GenPreds(base_PATH : str, iters : int):
 
     CNFModel = CNF(n_features=int(paramsTest.shape[1]),
                    context_features=int(dataTest.shape[1] * compressRatio), 
-                   n_layers = 8, hidden_features = 25, 
-                   num_bins = 16, tails = "linear", 
+                   n_layers = 8, hidden_features = 30, 
+                   num_bins = 24, tails = "linear", 
                    tail_bound = 3.5) 
 
     ckpt = torch.load(base_PATH + "Model_checkpoint.pt", map_location=device)
@@ -81,7 +81,11 @@ def GenPreds(base_PATH : str, iters : int):
         for b in tqdm(batches): #batch
             x = b.to(device)
             x_en = AEModel(x)
-            samples = CNFModel.flow.sample(NumSamples,context=x_en[0].unsqueeze(0))
+            #x_mean = x_en.mean(dim=0)
+            #x_std = x_en.std(dim=0,correction=1)
+            #x_en = (x_en - x_mean)/(x_std + EPSILON)
+            x_en_rep = x_en.mean(dim=0)
+            samples = CNFModel.flow.sample(NumSamples,context=x_en_rep.unsqueeze(0))
             sample_cut = samples.reshape(-1,samples.shape[-1])
     
             sample_exp = sample_cut.unsqueeze(1).expand(NumSamples,repeatSize,-1).reshape(NumSamples * repeatSize, -1)
@@ -140,5 +144,5 @@ def valCNF(base_PATH : str, iters : int):
 
 
 if __name__ == "__main__":
-    valCNF("/raid/vigneshk/Models/NOvACNF_AE/", 1)
+    valCNF("/raid/vigneshk/Models/NOvACNF_UnitELatentStd/", 1)
 
