@@ -72,16 +72,25 @@ def GenPreds(base_PATH : str, iters : int):
     batches = DataLoader(dataTest,batch_size=repeatSize,shuffle = False)
     trueParams = (paramsTest[::repeatSize,:] * (thetaStd + EPSILON)) + thetaMean
     
-
+    print("newCode")
     centerVals = []
     percDiffarr = []
+    NumSamples = 1000
+
     with torch.no_grad():
         for b in tqdm(batches): #batch
             x = b.to(device)
             x_en = AEModel(x)
-            samples = CNFModel.flow.sample(700,context=x_en).cpu().numpy()
+            samples = CNFModel.flow.sample(NumSamples,context=x_en[0].unsqueeze(0))
             sample_cut = samples.reshape(-1,samples.shape[-1])
-            infer = ModeDBScan(sample_cut,0.5,5)
+    
+            sample_exp = sample_cut.unsqueeze(1).expand(NumSamples,repeatSize,-1).reshape(NumSamples * repeatSize, -1)
+            x_en_repeat = x_en.unsqueeze(0).expand(NumSamples,repeatSize,-1).reshape(NumSamples*repeatSize , -1)
+            
+            logLik = CNFModel(sample_exp,context=x_en_repeat)
+            sumLog = logLik.view(-1,repeatSize).sum(dim=1)
+            infer = sample_cut[torch.argmax(sumLog)].cpu().numpy()
+
             infer = (infer * (thetaStd + EPSILON)) + thetaMean
             centerVals.append(infer) 
 
@@ -94,8 +103,17 @@ def valCNF(base_PATH : str, iters : int):
 
     titles = ["Delta_24","SinSq_24","SinSq_34","SinSq_23","DMsq_41","DMsq_32"]    
     params, inferRet = GenPreds(base_PATH,iters)
-    np.save("/raid/vigneshk/inferenceResults",inferRet)
+    np.save("/raid/vigneshk/inferenceResults2",inferRet)
+
+    #params = np.load("/raid/vigneshk/data/paramsTest.npy")
+    #thetaMean = np.load("/raid/vigneshk/data/paramsMean.npy")
+    #thetaStd = np.load("/raid/vigneshk/data/paramsStd.npy") 
+
+
+    #params = (params[::repeatSize,:] * (thetaStd + EPSILON)) + thetaMean
+    #inferRet = np.load("/raid/vigneshk/inferenceResults.npy") 
    
+    print(inferRet.shape)
     percList = []
     for i in range(inferRet.shape[1]):
         x = params[:,i]
@@ -104,16 +122,16 @@ def valCNF(base_PATH : str, iters : int):
             x = pow(10,x)
             y = pow(10,y)
 
-        diff = 100 * (y - x) / (np.abs(x) + np.abs(y) + 1e-12)
+        diff = 100 * (x - y) / (np.abs(x) + np.abs(y) + 1e-12)
         percList.append(diff)
 
-    percDiff = np.array(percList)
+    percDiff = np.transpose(np.vstack(percList))
 
-    print(params)
-    print(inferRet)
-    print(f"Real : {percList}")
+    #print(params)
+    #print(inferRet)
+    #print(f"Real : {percList}")
 
-
+    print(percDiff.shape)
     plotHist(percDiff,titles,base_PATH)
 
     
