@@ -17,7 +17,7 @@ EPSILON = 1e-3
 
 repeatSize = 10
 
-def GenPreds(base_PATH : str, iters : int):
+def GenPreds(base_PATH : str):
 
     middleRatio = 0.75
     compressRatio = 0.5
@@ -50,8 +50,76 @@ def GenPreds(base_PATH : str, iters : int):
     AEModel.load_state_dict(ckpt["AE_Model"])
     AEModel.eval()
     AEModel = AEModel.to(device)
+ 
+    batches = DataLoader(dataTest,batch_size=repeatSize,shuffle = False)
+    trueParams = (paramsTest[::repeatSize,:] * (thetaStd + EPSILON)) + thetaMean
+    
+    print("newCode")
+    centerVals = []
+    percDiffarr = []
+    NumSamples = 1000
+    kSamples = 1000
 
-    """ 
+    with torch.no_grad():
+        for b in tqdm(batches): #batch
+            x = b.to(device)
+            x_en = AEModel(x)
+            #x_en_rep = x_en.mean(dim=0)
+            samples = CNFModel.flow.sample(NumSamples,context=x_en)
+            sample_cut = samples.reshape(-1,samples.shape[-1])
+
+            x_en_firstExp = x_en.unsqueeze(1).expand(repeatSize,NumSamples,-1).reshape(NumSamples*repeatSize,-1)
+            firstPass = CNFModel(sample_cut,x_en_firstExp)
+            topidx = firstPass.topk(kSamples).indices
+
+            topSamples = sample_cut[topidx]
+    
+            sample_exp = topSamples.unsqueeze(1).expand(kSamples,repeatSize,-1).reshape(kSamples * repeatSize, -1)
+            x_en_repeat = x_en.unsqueeze(0).expand(kSamples,repeatSize,-1).reshape(kSamples*repeatSize , -1)
+            
+            logLik = CNFModel(sample_exp,context=x_en_repeat)
+            sumLog = logLik.view(-1,repeatSize).sum(dim=1)
+            infer = topSamples[torch.argmax(sumLog)].cpu().numpy()
+
+            infer = (infer * (thetaStd + EPSILON)) + thetaMean
+            centerVals.append(infer) 
+
+    return trueParams, np.array(centerVals)
+
+
+                
+
+def valCNF(base_PATH : str):
+
+    titles = ["Delta_24","SinSq_24","SinSq_34","SinSq_23","DMsq_41","DMsq_32"]    
+    params, inferRet = GenPreds(base_PATH)
+    np.save(base_PATH+"inferenceResults",inferRet)
+   
+    print(inferRet.shape)
+    percList = []
+    for i in range(inferRet.shape[1]):
+        x = params[:,i]
+        y = inferRet[:,i]
+        if i in [1,2,4]:
+            x = pow(10,x)
+            y = pow(10,y)
+
+        diff = 100 * (x - y) / (np.abs(x) + np.abs(y) + 1e-12)
+        percList.append(diff)
+
+    percDiff = np.transpose(np.vstack(percList))
+    plotHist(percDiff,titles,base_PATH)
+
+
+    plot2DMarginals(params,inferRet,titles,base_PATH)
+
+
+if __name__ == "__main__":
+    valCNF("/raid/vigneshk/Models/NOvACNF_ThickerModel/")
+
+
+
+""" 
     trueParams = paramsTest[0]
     testData = dataTest[:10,:].to(device)
 
@@ -69,80 +137,3 @@ def GenPreds(base_PATH : str, iters : int):
     return trueParams, infer
 
     """
-    batches = DataLoader(dataTest,batch_size=repeatSize,shuffle = False)
-    trueParams = (paramsTest[::repeatSize,:] * (thetaStd + EPSILON)) + thetaMean
-    
-    print("newCode")
-    centerVals = []
-    percDiffarr = []
-    NumSamples = 1000
-
-    with torch.no_grad():
-        for b in tqdm(batches): #batch
-            x = b.to(device)
-            x_en = AEModel(x)
-            #x_mean = x_en.mean(dim=0)
-            #x_std = x_en.std(dim=0,correction=1)
-            #x_en = (x_en - x_mean)/(x_std + EPSILON)
-            x_en_rep = x_en.mean(dim=0)
-            samples = CNFModel.flow.sample(NumSamples,context=x_en_rep.unsqueeze(0))
-            sample_cut = samples.reshape(-1,samples.shape[-1])
-    
-            sample_exp = sample_cut.unsqueeze(1).expand(NumSamples,repeatSize,-1).reshape(NumSamples * repeatSize, -1)
-            x_en_repeat = x_en.unsqueeze(0).expand(NumSamples,repeatSize,-1).reshape(NumSamples*repeatSize , -1)
-            
-            logLik = CNFModel(sample_exp,context=x_en_repeat)
-            sumLog = logLik.view(-1,repeatSize).sum(dim=1)
-            infer = sample_cut[torch.argmax(sumLog)].cpu().numpy()
-
-            infer = (infer * (thetaStd + EPSILON)) + thetaMean
-            centerVals.append(infer) 
-
-    return trueParams, np.array(centerVals)
-
-
-                
-
-def valCNF(base_PATH : str, iters : int):
-
-    titles = ["Delta_24","SinSq_24","SinSq_34","SinSq_23","DMsq_41","DMsq_32"]    
-    params, inferRet = GenPreds(base_PATH,iters)
-    np.save(base_PATH+"inferenceResults",inferRet)
-
-    #params = np.load("/raid/vigneshk/data/paramsTest.npy")
-    #thetaMean = np.load("/raid/vigneshk/data/paramsMean.npy")
-    #thetaStd = np.load("/raid/vigneshk/data/paramsStd.npy") 
-
-
-    #params = (params[::repeatSize,:] * (thetaStd + EPSILON)) + thetaMean
-    #inferRet = np.load("/raid/vigneshk/inferenceResults.npy") 
-   
-    print(inferRet.shape)
-    percList = []
-    for i in range(inferRet.shape[1]):
-        x = params[:,i]
-        y = inferRet[:,i]
-        if i in [1,2,4]:
-            x = pow(10,x)
-            y = pow(10,y)
-
-        diff = 100 * (x - y) / (np.abs(x) + np.abs(y) + 1e-12)
-        percList.append(diff)
-
-    percDiff = np.transpose(np.vstack(percList))
-
-    #print(params)
-    #print(inferRet)
-    #print(f"Real : {percList}")
-
-    print(percDiff.shape)
-    plotHist(percDiff,titles,base_PATH)
-
-    
-
-    #plot2DMarginals(params,inferRet,titles,base_PATH)
-
-
-if __name__ == "__main__":
-    valCNF("/raid/vigneshk/Models/NOvACNF_UnitELatentStd/", 1)
-
