@@ -21,9 +21,9 @@ data = torch.tensor(np.load("/raid/vigneshk/data/dataTrain.npy")).float()
 thetaStandard = torch.tensor(np.load("/raid/vigneshk/data/paramsTrain.npy")).float()
 
 def prepare_Models(rank : int, hyper_params : dict):
-    compressRatio = 0.68
-    middleRatio = 0.75
-
+    middleRatio = 0.90
+    compressRatio = 0.80
+    
     input_dim = int(data.shape[1])
     middle_dim = int(data.shape[1]*middleRatio)
     output_dim = int(data.shape[1]*compressRatio)

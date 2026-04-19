@@ -19,8 +19,8 @@ repeatSize = 10
 
 def GenPreds(base_PATH : str, iters : int):
 
-    middleRatio = 0.75
-    compressRatio = 0.68
+    middleRatio = 0.90
+    compressRatio = 0.80
 
     dnumber = 0
     device = torch.device(f"cuda:{dnumber}" if torch.cuda.is_available() else "cpu")
@@ -103,7 +103,7 @@ def valCNF(base_PATH : str, iters : int):
 
     titles = ["Delta_24","SinSq_24","SinSq_34","SinSq_23","DMsq_41","DMsq_32"]    
     params, inferRet = GenPreds(base_PATH,iters)
-    np.save("/raid/vigneshk/inferenceResults2",inferRet)
+    np.save(base_PATH+"inferenceResults",inferRet)
 
     #params = np.load("/raid/vigneshk/data/paramsTest.npy")
     #thetaMean = np.load("/raid/vigneshk/data/paramsMean.npy")
