@@ -25,28 +25,20 @@ def findMode(thetaDist : np.array):
 
     return np.array(modeVals)
 
-def ModeDBScan(thetaDist : np.array, clusterDist : float, min_samples : int):
+def DBScan(thetaDist : np.array, clusterDist : float, min_samples : int):
     db = DBSCAN(eps = clusterDist, min_samples = min_samples).fit(thetaDist)
     uniqueClusters = set(db.labels_)
     uniqueClusters.discard(-1)
     
-    centers = []
-    lens = []
+   
+    clusters = []
 
     for i in uniqueClusters:
         mask = db.labels_ == i
-        cluster = thetaDist[mask]
-        lens.append(cluster.shape[0])
-        clusterCentroid = np.mean(cluster,axis=0)
-        centers.append(clusterCentroid)
-        
+        clusters.append(thetaDist[mask])
+                 
 
-    centers = np.array(centers)
-    lens = np.array(lens)
-
-    idx = np.argmax(lens)
-
-    return centers[idx]
+    return clusters
 
 
 

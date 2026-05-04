@@ -1,6 +1,7 @@
 import numpy as np
 import uproot
 import matplotlib.pyplot as plt
+import pickle
 
 repeatSample = 10
 uniqueSample = 100000
@@ -48,8 +49,15 @@ def standardize(theta : np.array, data : np.array):
         stdSlices.append(slicedStd)
         slices.append((slicedData - slicedMean) / (slicedStd + EPSILON))
 
-    data_AT = np.concatenate(slices,axis=1)
 
+    data_AT = np.concatenate(slices,axis=1)
+    with open("/raid/vigneshk/data/slice_stats.pkl", "wb") as f:
+        pickle.dump({
+            "meanSlices": meanSlices,
+            "stdSlices": stdSlices
+        }, f)
+
+    
     return theta , theta_mean, theta_std, data_AT , meanSlices, stdSlices
 
 
@@ -76,6 +84,36 @@ def applyStd(theta : np.array, theta_mean : np.array,
 
     return theta, data_AT
 
+
+def applyStdtoData(data : np.array):
+
+    with open("slice_stats.pkl", "rb") as f:
+        data = pickle.load(f)
+
+    meanSlices = data["meanSlices"]
+    stdSlices = data["stdSlices"]
+
+
+    if data.ndim == 1:
+        data = np.expand_dims(data,axis=0)
+
+    binList = [22,22,22,22,14,14,13,13,6]
+    data_AT = 2 * np.sqrt(data + 3/8)
+
+    slices = []
+    index = 0
+
+    idx = 0 
+    for i in binList:
+        slicedData = data_AT[:,index:i+index]
+        index += i      
+        slices.append((slicedData - meanSlices[idx]) / (stdSlices[idx] + EPSILON))
+        idx += 1
+
+    data_AT = np.concatenate(slices,axis=1)
+
+    return data_AT
+
     
 
 
@@ -91,8 +129,7 @@ def getSterileData(base_path : str):
     paramsSaveMean = base_path + "paramsMean"
     paramsSaveStd = base_path + "paramsStd"
 
-
-    file = uproot.open(base_path + "CNFData_0_100000.root")
+    file = uproot.open(base_path + "CNFData_1_100000.root")
     tree = file["Experimental_Data_Tree"]
     branches = tree.arrays()
 
@@ -100,7 +137,8 @@ def getSterileData(base_path : str):
     data = np.array(branches["data"])
     params = np.array(branches["params"])
 
-    #plotBinnedData(data[-1],"plots/exampleDataSterile")
+    #plotBinnedData(data[-1],"plots/exampleDataSterilenew")
+
     print(f"Read Data \n data Shape: {data.shape} \n params Shape : {params.shape}")
 
     testTrainRatio = int(repeatSample * (0.8*uniqueSample))

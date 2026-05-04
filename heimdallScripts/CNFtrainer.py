@@ -16,13 +16,13 @@ from validateCNF import valCNF
 
 
 EPSILON = 1e-3
+middleRatio = 0.9
+compressRatio = 0.8
 
 data = torch.tensor(np.load("/raid/vigneshk/data/dataTrain.npy")).float()
 thetaStandard = torch.tensor(np.load("/raid/vigneshk/data/paramsTrain.npy")).float()
 
-def prepare_Models(rank : int, hyper_params : dict):
-    middleRatio = 0.75
-    compressRatio = 0.5
+def prepare_Models(rank : int, hyper_params : dict): 
     
     input_dim = int(data.shape[1])
     middle_dim = int(data.shape[1]*middleRatio)
@@ -132,7 +132,38 @@ if __name__ == "__main__":
     
     if runVal == "True" :
         print(runVal)
-        valCNF(PATH,1)
+        thetaMean = np.load("/raid/vigneshk/data/paramsMean.npy")
+        thetaStd = np.load("/raid/vigneshk/data/paramsStd.npy") 
+
+        dataTest = torch.tensor(np.load("/raid/vigneshk/data/dataTest.npy")).float()
+        paramsTest = np.load("/raid/vigneshk/data/paramsTest.npy")
+
+        dnumber = 0
+
+        device = torch.device(f"cuda:{dnumber}" if torch.cuda.is_available() else "cpu")
+        print(device) 
+
+        AEModel = autoEncoder(input_dim = int(dataTest.shape[1]),
+                              middle_dim = int(dataTest.shape[1] * middleRatio),
+                              output_dim = int(dataTest.shape[1] * compressRatio))
+
+        CNFModel = CNF(n_features=int(paramsTest.shape[1]),
+                       context_features=int(dataTest.shape[1] * compressRatio), 
+                       n_layers = 8, hidden_features = 30, 
+                       num_bins = 24, tails = "linear", 
+                       tail_bound = 3.5) 
+
+        ckpt = torch.load(PATH + "Model_checkpoint.pt", map_location=device)
+        CNFModel.load_state_dict(ckpt["CNF_Model"])
+        CNFModel.eval()
+        CNFModel = CNFModel.to(device)
+
+        AEModel.load_state_dict(ckpt["AE_Model"])
+        AEModel.eval()
+        AEModel = AEModel.to(device)
+
+        valCNF(PATH, AEModel, CNFModel, device,
+                thetaMean,thetaStd,dataTest,paramsTest)
 
 
 
