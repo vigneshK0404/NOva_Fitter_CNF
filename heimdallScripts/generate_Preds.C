@@ -75,7 +75,7 @@ void generate_Preds()
 
     nus5p1::PISCESHelper ph;
     auto samples = ph.GetSamplesFromOptString("numusel_ncres30sel_nuonesel_fhc_rhc_neardet_fardet",kPredNoSysts,true);
-    auto mx = ph.GetMatrix(samples, "testCov").release();
+    auto mx = ph.GetMatrix(samples, "all").release();
     auto calc = nus22::GetCalc(); 
 
     std::vector<int> expVec;
