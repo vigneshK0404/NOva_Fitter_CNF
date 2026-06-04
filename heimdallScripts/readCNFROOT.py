@@ -2,8 +2,9 @@ import numpy as np
 import uproot
 import matplotlib.pyplot as plt
 import pickle
+import os
 
-repeatSample = 10
+repeatSample = 150
 uniqueSample = 100000
 EPSILON = 1e-3
 
@@ -23,35 +24,51 @@ def plotBinnedData(data : np.array, path : str):
     plt.savefig(path+".png")
 
 
-def standardize(theta : np.array, data : np.array):
-    theta_unique = theta[::repeatSample,:]
-    theta_mean = np.mean(theta_unique, axis = 0)
-    theta_std = np.std(theta_unique,axis = 0,ddof=0)
-    theta = (theta - theta_mean)/(theta_std + EPSILON)
+def standardize(training_path : str):
 
-    #print(theta[np.abs(theta) > 3.5])
+    files = sorted(glob(training_path))
+    theta_sum = 0
+    num_samples = 0
+    theta_vars = 0
+    populus = len(files)
 
-    binList = [22,22,22,22,14,14,13,13,6]
-    data_AT = 2 * np.sqrt(data + 3/8)
+    for file_name in files:
+        x = np.load(file_name)
+        theta = x["params"]
+        data = x["data"]
+        theta_unique = theta[::repeatSample,:]
 
-    slices = []
-    index = 0
+        theta_sum += theta_unique.sum(axis=0)
+        num_samples += len(theta_unique)
+        theta_vars += np.var(theta_unique,axis = 0,ddof=1) * (len(theta_unique)-1)
+        
+        #print(theta[np.abs(theta) > 3.5])
 
-    meanSlices = []
-    stdSlices = []
+        binList = [22,22,22,22,14,14,13,13,6]
+        data_AT = 2 * np.sqrt(data + 3/8)
+
+        slices = []
+        index = 0
+
+        meanSlices = []
+        stdSlices = []
+        
+        for i in binList:
+            slicedData = data_AT[:,index:i+index]
+            index += i
+            slicedMean = np.mean(slicedData , axis = 0)
+            slicedStd = np.std(slicedData, axis=0, ddof=0)
+            meanSlices.append(slicedMean)
+            stdSlices.append(slicedStd)
+            slices.append((slicedData - slicedMean) / (slicedStd + EPSILON))
+
+
+        data_AT = np.concatenate(slices,axis=1)
     
-    for i in binList:
-        slicedData = data_AT[:,index:i+index]
-        index += i
-        slicedMean = np.mean(slicedData , axis = 0)
-        slicedStd = np.std(slicedData, axis=0, ddof=0)
-        meanSlices.append(slicedMean)
-        stdSlices.append(slicedStd)
-        slices.append((slicedData - slicedMean) / (slicedStd + EPSILON))
-
-
-    data_AT = np.concatenate(slices,axis=1)
-    with open("/raid/vigneshk/data/slice_stats.pkl", "wb") as f:
+    theta_mean = theta_sum/num_samples
+    theta_std = np.sqrt(theta_vars/(num_samples-populus))
+    #save theta_mean, theta_std, 
+    with open(f"{base_path}{file_name}_slice_stats.pkl", "wb") as f:
         pickle.dump({
             "meanSlices": meanSlices,
             "stdSlices": stdSlices
@@ -120,6 +137,12 @@ def applyStdtoData(data : np.array):
 
 def getSterileData(base_path : str):
 
+    training_path = data_base_path + "training/"
+    testing_path = data_base_path + "testing/"
+
+    data_output_path = data_base_path+"refined/"
+    os.makedirs(data_output_path,exist_ok=True)
+
     dataSaveTrain = base_path + "dataTrain"
     dataSaveTest = base_path + "dataTest"
 
@@ -129,7 +152,7 @@ def getSterileData(base_path : str):
     paramsSaveMean = base_path + "paramsMean"
     paramsSaveStd = base_path + "paramsStd"
 
-    file = uproot.open(base_path + "CNFData_1_100000.root")
+    file = uproot.open(base_path + "CNFData_1_1000000000_0.1_of_100.root")
     tree = file["Experimental_Data_Tree"]
     branches = tree.arrays()
 
@@ -182,5 +205,7 @@ def getSterileData(base_path : str):
        
 
 if __name__ == "__main__":
-    getSterileData("data/")
+    data_base_path = "/home/vigneshwar/pythonEnvs/CNF/data/"
+
+    getSterileData(data_base_path)
 
