@@ -9,6 +9,7 @@ uniqueSample = 100000
 EPSILON = 1e-3
 
 def plotBinnedData(data : np.array, path : str):
+    print("OLD function do not use")
     binList = [22,22,22,22,14,14,13,13,6]
 
     index = 0
@@ -120,82 +121,35 @@ def applyStd(base_path : str, apply_site : str): #apply_site is either training 
 
         data_AT = np.concatenate(slices,axis=1)
 
-        np.savez(f"{base_path}processed/{file_name}", data = data_AT, params = theta)
+        if apply_site == "training":
+            rng_state = np.random.get_state()
+            np.random.shuffle(data_AT)
+            np.random.set_state(rng_state)
+            np.random.shuffle(theta)            
+
+        data_output_path = data_base_path+"processed/"
+        os.makedirs(data_output_path,exist_ok=True)
+        np.savez(f"{data_output_path}{file_name}", data = data_AT, params = theta)
 
     return
  
 
 def getSterileData(base_path : str):
-
-    training_path = data_base_path + "training/"
-    testing_path = data_base_path + "testing/"
-
-    data_output_path = data_base_path+"refined/"
-    os.makedirs(data_output_path,exist_ok=True)
-
-    dataSaveTrain = base_path + "dataTrain"
-    dataSaveTest = base_path + "dataTest"
-
-    paramsSaveTrain = base_path + "paramsTrain"
-    paramsSaveTest = base_path + "paramsTest" 
-
-    paramsSaveMean = base_path + "paramsMean"
-    paramsSaveStd = base_path + "paramsStd"
-
-    file = uproot.open(base_path + "CNFData_1_1000000000_0.1_of_100.root")
-    tree = file["Experimental_Data_Tree"]
-    branches = tree.arrays()
-
-    print(tree.keys())
-    data = np.array(branches["data"])
-    params = np.array(branches["params"])
-
-    #plotBinnedData(data[-1],"plots/exampleDataSterilenew")
-
-    print(f"Read Data \n data Shape: {data.shape} \n params Shape : {params.shape}")
-
-    testTrainRatio = int(repeatSample * (0.8*uniqueSample))
-    param_train = params[:testTrainRatio,:]
-    param_test = params[testTrainRatio:,:]
-    data_train = data[:testTrainRatio,:]
-    data_test = data[testTrainRatio:,:]
-
-    print("Split training and testing data 80/20")
-
-    
-    theta_train,theta_mean,theta_std,data_train, meanSlices, stdSlices = standardize(param_train, data_train)
-
-    print("Standardized Train")
-
-    theta_test,data_test = applyStd(param_test, theta_mean, theta_std, data_test, meanSlices, stdSlices)  
-
-    print("Standardized Test")    
-
-    rng_state = np.random.get_state()
-    np.random.shuffle(data_train)
-    np.random.set_state(rng_state)
-    np.random.shuffle(theta_train) 
-
-    print("Randomized Training Data")
  
-    np.save(dataSaveTrain,data_train)
-    np.save(dataSaveTest,data_test)
+    calculate_std(base_path)
 
-    np.save(paramsSaveTrain,theta_train)
-    np.save(paramsSaveTest,theta_test)    
+    print("Calculated Standardizations")
 
-    np.save(paramsSaveMean,theta_mean)
-    np.save(paramsSaveStd,theta_std)
+    applyStd(base_path, "training")
 
-    print("Complete")
+    print("Standardized and Randomized Training Data")    
 
-    #print(param_test)
-    #print(data_test)
+    applyStd(base_path, "testing")
 
+    print("Standardized Testing Data. Complete")
        
 
 if __name__ == "__main__":
-    data_base_path = "/home/vigneshwar/pythonEnvs/CNF/data/"
-
-    getSterileData(data_base_path)
+    base_path = "/home/vigneshwar/pythonEnvs/CNF/data/"
+    getSterileData(base_path)
 
