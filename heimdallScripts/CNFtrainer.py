@@ -14,7 +14,6 @@ from pathlib import Path
 
 from validateCNF import valCNF
 
-
 EPSILON = 1e-3
 middleRatio = 0.9
 compressRatio = 0.8
@@ -135,7 +134,7 @@ if __name__ == "__main__":
         thetaMean = np.load("/raid/vigneshk/data/paramsMean.npy")
         thetaStd = np.load("/raid/vigneshk/data/paramsStd.npy") 
 
-        dataTest = torch.tensor(np.load("/raid/vigneshk/data/dataTest.npy")).float()
+        dataTest = torch.tensor(np.load("/raid/vigneshk/data/dataTest.npy")).float() #change to torch.from_numpy
         paramsTest = np.load("/raid/vigneshk/data/paramsTest.npy")
 
         dnumber = 0

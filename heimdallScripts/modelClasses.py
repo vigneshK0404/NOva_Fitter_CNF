@@ -25,6 +25,9 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 import os
 
+import zipfile
+
+
 EPSILON = 1e-3
 
 def printNormGrad(parameters : torch.tensor):
@@ -38,7 +41,7 @@ def printNormGrad(parameters : torch.tensor):
 
 def ddp_setup(rank : int, world_size: int):
     os.environ["MASTER_ADDR"] = "localhost"
-    os.environ["MASTER_PORT"] = "12355"
+    os.environ["MASTER_PORT"] = "12355m"
 
     torch.cuda.set_device(rank)
     init_process_group(backend="nccl", rank=rank, world_size=world_size)
@@ -59,18 +62,44 @@ class autoEncoder(torch.nn.Module):
     def forward(self,x):
         return self.encoder(x)
 
+def binary_search(x : list, val : int):
+    l = 0
+    r = len(x)-1
+    while r > l :
+        m = (l + r)//2
+        if x[m] > val:
+            r = m
+        elif x[m] < val:
+            l = m
+        else:
+            break
 
-class trainingDataSet(Dataset):
-  def __init__(self,thetaData, dataPoisson_latent):
-    assert len(thetaData) == len(dataPoisson_latent)
-    self.thetaData = thetaData
-    self.dataPoisson_latent = dataPoisson_latent
+    return m
 
-  def __len__(self):
-    return len(self.thetaData)
 
-  def __getitem__(self, idx):
-    return self.thetaData[idx], self.dataPoisson_latent[idx]
+class trainingDataset(Dataset):
+    def __init__(self, data_paths : str):
+        self.data_paths = data_paths
+        self.global_len = 0
+        self.idxs = [0]
+        for file_name in self.data_paths :
+            with zipfile.ZipFile(file_name) as arc:
+                data = arc.open("data")
+                version = np.lib.format.read_magic(data)
+                shape, _ , _ = np.lib.format._read_array_header(data, version)
+            self.global_len += int(shape[0])
+            self.idxs.append(self.global_len)
+       
+    def __len__(self):
+        return self.global_len
+
+    def __getitem__(self, index):
+
+        x = np.load(self.data_paths[index])
+        theta = torch.from_numpy(x["params"])
+        data = torch.from_numpy(x["data"])
+        
+        return theta, data
 
 
 class CNF(torch.nn.Module):
