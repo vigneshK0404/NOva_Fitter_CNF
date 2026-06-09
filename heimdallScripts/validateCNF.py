@@ -1,6 +1,6 @@
 from modelClasses import CNF, autoEncoder
 from validatePlots import plotHist, ModeMeanShift, plot2DMarginals, DBScan
-from readCNFROOT import applyStdtoData
+from readCNFROOT import applyStd
 
 import torch
 import numpy as np
@@ -62,7 +62,7 @@ def GenPrediction(base_PATH : str, NumSamples : int,
     file = uproot.open(base_path + "sampleData.root")
     tree = file["dataTree"]
     data = torch.tensor(np.array(tree["data"]),device=device).float()
-    data = applyStdtoData(data)
+    data = applyStd(data)
 
     representatives = []
 

@@ -1,33 +1,29 @@
-from modelClasses import ddp_setup, CNF, CNF_trainer, trainingDataSet , autoEncoder
+from modelClasses import ddp_setup, CNF, CNF_trainer, autoEncoder
 import torch
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 import torch.multiprocessing as mp
-from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
-import os
 import sys
-import torchinfo
 import pickle
 from pathlib import Path
+from glob import glob
 
 from validateCNF import valCNF
 
-EPSILON = 1e-3
+
 middleRatio = 0.9
 compressRatio = 0.8
 
-data = torch.tensor(np.load("/raid/vigneshk/data/dataTrain.npy")).float()
-thetaStandard = torch.tensor(np.load("/raid/vigneshk/data/paramsTrain.npy")).float()
 
 def prepare_Models(rank : int, hyper_params : dict): 
     
-    input_dim = int(data.shape[1])
-    middle_dim = int(data.shape[1]*middleRatio)
-    output_dim = int(data.shape[1]*compressRatio)
+    input_dim = 148
+    middle_dim = int(148 * middleRatio)
+    output_dim = int(148 * compressRatio)
 
-    n_features = int(thetaStandard.shape[1])
+    n_features = 6
     n_layers = 8
     hidden_features = 30
     contextF = output_dim
@@ -72,30 +68,20 @@ def prepare_Models(rank : int, hyper_params : dict):
 
     return ae, cnf
 
-def prepare_dataloader(dataset: Dataset, batch_size: int):
-    return DataLoader(
-        dataset,
-        batch_size=batch_size,
-        pin_memory=True,
-        shuffle=False,
-        sampler=DistributedSampler(dataset, shuffle = True)
-    )
-
-def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hyper_params : dict, base_PATH : str):
+def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hyper_params : dict, base_PATH : str, refined_data_path : str):
     hyper_params = dict(base_hyper_params)
     ddp_setup(rank, world_size)
     AEmodel, CNFmodel = prepare_Models(rank, hyper_params)
     CNFmodel = CNFmodel.train()
     AEmodel = AEmodel.train()
-    dataset = trainingDataSet(thetaStandard,data)
-    train_data = prepare_dataloader(dataset, batch_size)
-    trainer = CNF_trainer(AEmodel,CNFmodel, train_data, rank, batch_size)  
+    data_paths = list(glob(f"{refined_data_path}training/*.npy"))
+    data_patterns = [f"{i}" for i in range(len(data_paths)//2)]
+    trainer = CNF_trainer(AEmodel,CNFmodel, data_patterns, rank, batch_size)  
 
     if rank == 0:
         hyper_params["Optimizer"] = str(trainer.optimizer)
         PATH = base_PATH + "hP.bin" 
         #print(f"main : {hyper_params}")
-
 
         with open(PATH, 'wb') as handle:
             pickle.dump(hyper_params, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -107,14 +93,14 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hy
 
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()
-    batch_size = 512
-    total_epochs = 30
+    batch_size = 8192
+    total_epochs = 3
 
     args = sys.argv
     runVal = args[1]
     CNFName = args[2]
 
-    PATH = f"/raid/vigneshk/Models/{CNFName}/"
+    PATH = f"Models/{CNFName}/"
     Path(PATH).mkdir(parents=True, exist_ok=True)
 
     CNF_hyperParams = {}
@@ -124,18 +110,21 @@ if __name__ == "__main__":
              "Epochs" : total_epochs}
 
     print(f"Before : {CNF_hyperParams}")
-    
-    mp.spawn(main, args=(world_size, total_epochs, batch_size, CNF_hyperParams, PATH), nprocs=world_size) 
+
+    refined_data_path = "data/processed/"
+
+    mp.spawn(main, args=(world_size, total_epochs, batch_size, CNF_hyperParams, PATH, refined_data_path), nprocs=world_size) 
     
     print("Finished")
     
     if runVal == "True" :
         print(runVal)
-        thetaMean = np.load("/raid/vigneshk/data/paramsMean.npy")
-        thetaStd = np.load("/raid/vigneshk/data/paramsStd.npy") 
+        thetaMean = np.load(f"{refined_data_path}stats/theta_mean.npy")
+        thetaStd = np.load(f"{refined_data_path}stats/theta_std.npy") 
 
-        dataTest = torch.tensor(np.load("/raid/vigneshk/data/dataTest.npy")).float() #change to torch.from_numpy
-        paramsTest = np.load("/raid/vigneshk/data/paramsTest.npy")
+        x = np.load("{refined_data_path}testing/17.npz")
+        dataTest = torch.from_numpy(x["data"])
+        paramsTest = x["params"]
 
         dnumber = 0
 

@@ -25,15 +25,13 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 import os
 
-import zipfile
-
-
-EPSILON = 1e-3
+import numpy as np
+import time
 
 def printNormGrad(parameters : torch.tensor):
     total = 0
     for p in parameters:
-        if p is not None:
+        if p.grad is not None:
             total += p.grad.detach().norm(2).item()
 
     return total**0.5
@@ -41,7 +39,7 @@ def printNormGrad(parameters : torch.tensor):
 
 def ddp_setup(rank : int, world_size: int):
     os.environ["MASTER_ADDR"] = "localhost"
-    os.environ["MASTER_PORT"] = "12355m"
+    os.environ["MASTER_PORT"] = "12355"
 
     torch.cuda.set_device(rank)
     init_process_group(backend="nccl", rank=rank, world_size=world_size)
@@ -62,50 +60,11 @@ class autoEncoder(torch.nn.Module):
     def forward(self,x):
         return self.encoder(x)
 
-def binary_search(x : list, val : int):
-    l = 0
-    r = len(x)-1
-    while r > l :
-        m = (l + r)//2
-        if x[m] > val:
-            r = m
-        elif x[m] < val:
-            l = m
-        else:
-            break
-
-    return m
-
-
-class trainingDataset(Dataset):
-    def __init__(self, data_paths : str):
-        self.data_paths = data_paths
-        self.global_len = 0
-        self.idxs = [0]
-        for file_name in self.data_paths :
-            with zipfile.ZipFile(file_name) as arc:
-                data = arc.open("data")
-                version = np.lib.format.read_magic(data)
-                shape, _ , _ = np.lib.format._read_array_header(data, version)
-            self.global_len += int(shape[0])
-            self.idxs.append(self.global_len)
-       
-    def __len__(self):
-        return self.global_len
-
-    def __getitem__(self, index):
-
-        x = np.load(self.data_paths[index])
-        theta = torch.from_numpy(x["params"])
-        data = torch.from_numpy(x["data"])
-        
-        return theta, data
-
 
 class CNF(torch.nn.Module):
     def __init__(self,
-                 n_features : int, #Central data features 6 Ni,mui,sigi (i1,2)
-                 context_features : int, #compressed Poisson features
+                 n_features : int,
+                 context_features : int,
                  n_layers : int,
                  hidden_features : int,
                  num_bins : int,
@@ -136,12 +95,36 @@ class CNF(torch.nn.Module):
     def forward(self,x,context):
         return self.flow.log_prob(x,context=context)
 
+class trainingDataset(Dataset):
+    def __init__(self, t_string : str, d_string : str):
+        self.theta = np.load(t_string,mmap_mode='r')
+        self.data = np.load(d_string,mmap_mode='r')
+                  
+    def __len__(self): 
+        return len(self.data)
+
+
+    def __getitem__(self, idx): 
+        return (torch.from_numpy(self.theta[idx]),
+        torch.from_numpy(self.data[idx]))
+
+def prepare_dataloader(dataset: Dataset, batch_size: int):
+    return DataLoader(
+        dataset,
+        batch_size=batch_size,
+        pin_memory=True,
+        shuffle=False,
+        sampler=DistributedSampler(dataset, shuffle = True),
+        num_workers = 4,
+        prefetch_factor = 2
+    )
+
 
 class CNF_trainer():
     def __init__(self,
                  AEModel : autoEncoder,
                  CNFModel : CNF,
-                 train_data: DataLoader,
+                 data_patterns: str,
                  gpu_id: int,
                  batch_size : int
                  ):
@@ -150,11 +133,11 @@ class CNF_trainer():
         self.gpu_id = gpu_id
         self.AEModel = AEModel.to(gpu_id)
         self.CNFModel = CNFModel.to(gpu_id)
-        self.train_data = train_data
         self.AEModel = DDP(self.AEModel, device_ids=[gpu_id])
         self.CNFModel = DDP(self.CNFModel, device_ids=[gpu_id])
         self.cnf_losses = []
-        self.plotDir = "/raid/vigneshk/plots/"
+        self.data_patterns = data_patterns
+        self.plotDir = "plots/"
 
         #CNF HYPER-PARAMS TO CHANGE
 
@@ -164,26 +147,22 @@ class CNF_trainer():
             {"params": self.CNFModel.parameters(), "lr": 1e-3}
             ])
 
-        self.batch_size = batch_size 
+        self.batch_size = batch_size
 
     def _run_batch(self, x_input, x_cond,record_loss : bool):
         self.optimizer.zero_grad()
         z_cond = self.AEModel(x_cond)
-        #z_mean = z_cond.mean(dim=0)
-        #z_std = z_cond.std(dim=0,correction=1)
-        #z_condition = (z_cond - z_mean)/(z_std + EPSILON)
         nll = - self.CNFModel(x_input, context=z_cond)
         cnf_loss = nll.mean()
         cnf_loss.backward()
 
-        """
         if self.gpu_id == 0 :
             aeGrad = printNormGrad(self.AEModel.parameters())
             cnfGrad = printNormGrad(self.CNFModel.parameters())
             print(f"AE : {aeGrad} CNF : {cnfGrad} total : {(aeGrad*aeGrad+cnfGrad*cnfGrad)**0.5}")
-        """
         
-        torch.nn.utils.clip_grad_norm_(self.CNFModel.parameters(),max_norm = 38.0)
+        
+        #torch.nn.utils.clip_grad_norm_(self.CNFModel.parameters(),max_norm = 28.0)
 
         self.optimizer.step()
 
@@ -194,18 +173,26 @@ class CNF_trainer():
 
 
     def _run_epoch(self,epoch):    
-        print(f"[GPU{self.gpu_id}] Epoch {epoch} | Steps: {len(self.train_data)}")
-        self.train_data.sampler.set_epoch(epoch)
+        file_idx = 0
+        for pattern in self.data_patterns:
+            file_name_t = f"data/processed/training/theta_{pattern}.npy"
+            file_name_d = f"data/processed/training/data_{pattern}.npy"
+            dataset = trainingDataset(file_name_t, file_name_d)
+            train_data = prepare_dataloader(dataset, self.batch_size)
+            train_data.sampler.set_epoch(epoch*len(self.data_patterns)+file_idx)
+            file_idx += 1
 
-        for counter,dS in enumerate(self.train_data):
-            x_batch,x_cond = dS
-            x_batch = x_batch.to(self.gpu_id, non_blocking = True)
-            x_cond = x_cond.to(self.gpu_id, non_blocking = True)
-            loss_rec = self._run_batch(x_batch,x_cond,record_loss = (counter % 1000 == 0))
+            print(f"[GPU{self.gpu_id}] Epoch {epoch} | Pattern : {pattern} | Steps: {len(train_data)}")
+            for counter,dS in enumerate(train_data):
+                x_batch,x_cond = dS
+                #print(x_batch.shape, x_cond.shape)
+                x_batch = x_batch.to(self.gpu_id, non_blocking = True)
+                x_cond = x_cond.to(self.gpu_id, non_blocking = True)
+                loss_rec = self._run_batch(x_batch,x_cond,record_loss = (counter % 1000 == 0))
 
-            if loss_rec is not None:
-                self.cnf_losses.append(loss_rec)
-                print(loss_rec)
+                if loss_rec is not None:
+                    self.cnf_losses.append(loss_rec)
+                    print(loss_rec)
 
     def _train(self,max_epoch : int, PATH : str): 
         for epoch in tqdm(range(max_epoch)):

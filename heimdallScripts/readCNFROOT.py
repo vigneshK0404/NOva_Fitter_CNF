@@ -2,7 +2,10 @@ import numpy as np
 import uproot
 import matplotlib.pyplot as plt
 import pickle
-import os
+from pathlib import Path
+from glob import glob
+from tqdm import tqdm
+import os 
 
 repeatSample = 150
 uniqueSample = 100000
@@ -27,116 +30,107 @@ def plotBinnedData(data : np.array, path : str):
 
 def calculate_std(base_path : str):
 
-    files = sorted(glob(f"{base_path}training/"))
+    files = sorted(glob(f"{base_path}training/*.npz"))
+
     theta_sum = 0
     num_samples = 0
-    theta_vars = 0
-    populus = len(files)
+    theta_sq_sum = 0
+
+    data_sum = 0
     num_data = 0
-    meanSlices = []
-    stdSlices = []
-    binList = [22,22,22,22,14,14,13,13,6]
-
-
-    for file_name in files:
+    data_sq_sum = 0
+   
+    
+    for file_name in tqdm(files):
         x = np.load(file_name)
         theta = x["params"]
         theta_unique = theta[::repeatSample,:]
 
         theta_sum += theta_unique.sum(axis=0)
         num_samples += len(theta_unique)
-        theta_vars += np.var(theta_unique,axis = 0,ddof=1) * (len(theta_unique)-1)
+        theta_sq_sum += np.square(theta_unique).sum(axis=0)
         
         #print(theta[np.abs(theta) > 3.5])
         data = x["data"]
-        data_AT = 2 * np.sqrt(data + 3/8)
+        data_AT = 2 * np.sqrt(data + 3/8)    
 
-        index = 0                
-        sumSlices = [0,0,0,0,0,0,0,0,0]
-        varSlices = [0,0,0,0,0,0,0,0,0]
-        numSlices = [0,0,0,0,0,0,0,0,0]
+
         num_data += len(data_AT)
+        data_sum += data_AT.sum(axis=0)
+        data_sq_sum +=  np.square(data_AT).sum(axis=0)
 
-        idx = 0
 
-        for i in binList:
-            slicedData = data_AT[:,index:i+index]
-            index += i
-            sumSlices[idx] += np.sum(slicedData,axis=0)
-            varSlices[idx] += np.var(slicedData,axis-0,ddof=1) * (len(data_AT) - 1)
-            numSlices[idx] += len(data_AT)
-            idx += 1
-    
+            
     theta_mean = theta_sum/num_samples
-    theta_std = np.sqrt(theta_vars/(num_samples-populus))
+    theta_std = np.sqrt((theta_sq_sum/num_samples) - np.square(theta_mean))
 
-    for i in range(len(sumSlices)):
-        meanSlices.append(sumSlices[i]/num_data)
-        stdSlices.append(np.sqrt(varSlices[i]/(numSlices[i] - populus)))
+    data_mean = data_sum/num_data
+    data_std = np.sqrt((data_sq_sum/num_data) - np.square(data_mean))
     
-    with open(f"{base_path}processed/slice_stats.pkl", "wb") as f:
-        pickle.dump({
-            "meanSlices": meanSlices,
-            "stdSlices": stdSlices
-        }, f)
+    np.save(f"{base_path}processed/stats/theta_mean",theta_mean)
+    np.save(f"{base_path}processed/stats/theta_std",theta_std)
 
-    np.save(f"{base_path}processed/theta_mean",theta_mean)
-    np.save(f"{base_path}processed/theta_std",theta_std)
+    np.save(f"{base_path}processed/stats/data_mean",data_mean)
+    np.save(f"{base_path}processed/stats/data_std",data_std)
+
     
     return
 
 
 def applyStd(base_path : str, apply_site : str): #apply_site is either training or testing
 
-    files = sorted(glob(f"{base_path}{apply_site}/"))
+    files = sorted(glob(f"{base_path}{apply_site}/*.npz"))
 
-    theta_mean = np.load(f"{base_path}processed/theta_mean.npy")
-    theta_std = np.load(f"{base_path}processed/theta_std.npy")
-    binList = [22,22,22,22,14,14,13,13,6]
-
-    with open("slice_stats.pkl", "rb") as f:
-        data = pickle.load(f)
-
-    meanSlices = data["meanSlices"]
-    stdSlices = data["stdSlices"]
+    theta_mean = np.load(f"{base_path}processed/stats/theta_mean.npy")
+    theta_std = np.load(f"{base_path}processed/stats/theta_std.npy")
+    
+    data_mean = np.load(f"{base_path}processed/stats/data_mean.npy")
+    data_std = np.load(f"{base_path}processed/stats/data_std.npy") 
 
 
-    for file_name in files:
+    data_output_path = f"{base_path}processed/{apply_site}"
+    Path(data_output_path).mkdir(parents=True, exist_ok=True)
+
+    for file_name in tqdm(files):
         x = np.load(file_name)
         theta = x["params"]
-        theta = (theta - theta_mean)/(theta_std + EPSILON)
+        theta -= theta_mean
+        theta /= (theta_std + EPSILON)
     
-        data = x["data"]
-        data_AT = 2 * np.sqrt(data + 3/8)
+        data_AT = 2 * np.sqrt(x["data"] + 3/8)
 
-        slices = []
-        index = 0
-        idx = 0 
+        data_AT -= data_mean
+        data_AT /= (data_std + EPSILON)
 
-        for i in binList:
-            slicedData = data_AT[:,index:i+index]
-            index += i      
-            slices.append((slicedData - meanSlices[idx]) / (stdSlices[idx] + EPSILON))
-            idx += 1
-
-        data_AT = np.concatenate(slices,axis=1)
+        data_AT = data_AT.astype(np.float32, copy=False)
+        theta = theta.astype(np.float32, copy=False)
 
         if apply_site == "training":
             rng_state = np.random.get_state()
             np.random.shuffle(data_AT)
             np.random.set_state(rng_state)
-            np.random.shuffle(theta)            
+            np.random.shuffle(theta)       
+  
+        out_file_t = Path(data_output_path) / ("theta_"+ Path(file_name).stem)
+        out_file_d = Path(data_output_path) / ("data_"+ Path(file_name).stem)
+        
+        np.save(out_file_t, theta)
+        np.save(out_file_d, data_AT)
 
-        data_output_path = data_base_path+"processed/"
-        os.makedirs(data_output_path,exist_ok=True)
-        np.savez(f"{data_output_path}{file_name}", data = data_AT, params = theta)
+        with np.load(out_file_t) as check:
+            assert check.shape == theta.shape
+
+        with np.load(out_file_d) as check:
+            assert check.shape == data_AT.shape
+
+        os.remove(file_name)
 
     return
  
 
 def getSterileData(base_path : str):
  
-    calculate_std(base_path)
+    #calculate_std(base_path)
 
     print("Calculated Standardizations")
 
@@ -147,9 +141,29 @@ def getSterileData(base_path : str):
     applyStd(base_path, "testing")
 
     print("Standardized Testing Data. Complete")
+
+
+def unpacknpz(base_path : str, handle : str):
+    data_path = f"{base_path}processed/{handle}/"
+
+    files = sorted(glob(f"{data_path}*.npz"))
+
+    for file_name in tqdm(files):
+        x = np.load(file_name)
+        out_file_t = Path(data_path) / ("theta_"+ Path(file_name).stem)
+        out_file_d = Path(data_path) / ("data_"+ Path(file_name).stem)
+        
+        np.save(out_file_t, x["params"])
+        np.save(out_file_d, x["data"])
+
+        os.remove(file_name)
+
+
        
 
 if __name__ == "__main__":
-    base_path = "/home/vigneshwar/pythonEnvs/CNF/data/"
-    getSterileData(base_path)
+    base_path = "data/"
+    #getSterileData(base_path)
+    unpacknpz(base_path,"training")
+    unpacknpz(base_path,"testing")
 
