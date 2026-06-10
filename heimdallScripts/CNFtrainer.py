@@ -74,9 +74,9 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hy
     AEmodel, CNFmodel = prepare_Models(rank, hyper_params)
     CNFmodel = CNFmodel.train()
     AEmodel = AEmodel.train()
-    data_paths = list(glob(f"{refined_data_path}training/*.npy"))
-    data_patterns = [f"{i}" for i in range(len(data_paths)//2)]
-    trainer = CNF_trainer(AEmodel,CNFmodel, data_patterns, rank, batch_size)  
+    theta_paths = sorted(glob(f"{refined_data_path}training/*_theta_*"))
+    data_paths = sorted(glob(f"{refined_data_path}training/*_data_*"))
+    trainer = CNF_trainer(AEmodel,CNFmodel, theta_paths, data_paths, rank, batch_size)  
 
     if rank == 0:
         hyper_params["Optimizer"] = str(trainer.optimizer)
@@ -93,7 +93,7 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hy
 
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()
-    batch_size = 8192
+    batch_size = 4096
     total_epochs = 3
 
     args = sys.argv

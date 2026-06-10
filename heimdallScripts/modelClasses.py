@@ -31,7 +31,7 @@ import time
 def printNormGrad(parameters : torch.tensor):
     total = 0
     for p in parameters:
-        if p.grad is not None:
+        if p is not None:
             total += p.grad.detach().norm(2).item()
 
     return total**0.5
@@ -124,7 +124,8 @@ class CNF_trainer():
     def __init__(self,
                  AEModel : autoEncoder,
                  CNFModel : CNF,
-                 data_patterns: str,
+                 theta_paths: str,
+                 data_paths : str,
                  gpu_id: int,
                  batch_size : int
                  ):
@@ -136,7 +137,8 @@ class CNF_trainer():
         self.AEModel = DDP(self.AEModel, device_ids=[gpu_id])
         self.CNFModel = DDP(self.CNFModel, device_ids=[gpu_id])
         self.cnf_losses = []
-        self.data_patterns = data_patterns
+        self.data_paths = data_paths
+        self.theta_paths = theta_paths
         self.plotDir = "plots/"
 
         #CNF HYPER-PARAMS TO CHANGE
@@ -156,13 +158,13 @@ class CNF_trainer():
         cnf_loss = nll.mean()
         cnf_loss.backward()
 
-        if self.gpu_id == 0 :
+        """if self.gpu_id == 0 :
             aeGrad = printNormGrad(self.AEModel.parameters())
             cnfGrad = printNormGrad(self.CNFModel.parameters())
             print(f"AE : {aeGrad} CNF : {cnfGrad} total : {(aeGrad*aeGrad+cnfGrad*cnfGrad)**0.5}")
+        """
         
-        
-        #torch.nn.utils.clip_grad_norm_(self.CNFModel.parameters(),max_norm = 28.0)
+        torch.nn.utils.clip_grad_norm_(self.CNFModel.parameters(),max_norm = 33.0)
 
         self.optimizer.step()
 
@@ -173,16 +175,14 @@ class CNF_trainer():
 
 
     def _run_epoch(self,epoch):    
-        file_idx = 0
-        for pattern in self.data_patterns:
-            file_name_t = f"data/processed/training/theta_{pattern}.npy"
-            file_name_d = f"data/processed/training/data_{pattern}.npy"
+        for file_idx in range(len(self.data_paths)):
+            file_name_t = self.theta_paths[file_idx]
+            file_name_d = self.data_paths[file_idx]
             dataset = trainingDataset(file_name_t, file_name_d)
             train_data = prepare_dataloader(dataset, self.batch_size)
-            train_data.sampler.set_epoch(epoch*len(self.data_patterns)+file_idx)
-            file_idx += 1
+            train_data.sampler.set_epoch(epoch*len(self.data_paths)+file_idx)
 
-            print(f"[GPU{self.gpu_id}] Epoch {epoch} | Pattern : {pattern} | Steps: {len(train_data)}")
+            print(f"[GPU{self.gpu_id}] Epoch {epoch} | file : {file_name_t},{file_name_d} | Steps: {len(train_data)}")
             for counter,dS in enumerate(train_data):
                 x_batch,x_cond = dS
                 #print(x_batch.shape, x_cond.shape)

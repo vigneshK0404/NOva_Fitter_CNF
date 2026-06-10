@@ -111,17 +111,15 @@ def applyStd(base_path : str, apply_site : str): #apply_site is either training 
             np.random.set_state(rng_state)
             np.random.shuffle(theta)       
   
-        out_file_t = Path(data_output_path) / ("theta_"+ Path(file_name).stem)
-        out_file_d = Path(data_output_path) / ("data_"+ Path(file_name).stem)
         
-        np.save(out_file_t, theta)
-        np.save(out_file_d, data_AT)
+        split_theta = np.array_split(theta,5)
+        split_data = np.array_split(data_AT,5)
 
-        with np.load(out_file_t) as check:
-            assert check.shape == theta.shape
-
-        with np.load(out_file_d) as check:
-            assert check.shape == data_AT.shape
+        for i in range(len(split_theta)):
+            out_file_t = Path(data_output_path) / (Path(file_name).stem + f"_theta_{i}")
+            out_file_d = Path(data_output_path) / (Path(file_name).stem + f"_data_{i}")    
+            np.save(out_file_t, split_theta[i])
+            np.save(out_file_d, split_data[i]) 
 
         os.remove(file_name)
 
@@ -130,7 +128,7 @@ def applyStd(base_path : str, apply_site : str): #apply_site is either training 
 
 def getSterileData(base_path : str):
  
-    #calculate_std(base_path)
+    calculate_std(base_path)
 
     print("Calculated Standardizations")
 
@@ -163,7 +161,7 @@ def unpacknpz(base_path : str, handle : str):
 
 if __name__ == "__main__":
     base_path = "data/"
-    #getSterileData(base_path)
-    unpacknpz(base_path,"training")
-    unpacknpz(base_path,"testing")
+    getSterileData(base_path)
+    #unpacknpz(base_path,"training")
+    #unpacknpz(base_path,"testing")
 
