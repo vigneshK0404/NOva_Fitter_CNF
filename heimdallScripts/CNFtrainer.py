@@ -24,11 +24,11 @@ compressRatio = global_nums.compressRatio
 def prepare_Models(rank : int, hyper_params : dict): 
     
     input_dim = 148
-    middle_dim = int(148 * middleRatio)
-    output_dim = int(148 * compressRatio)
+    middle_dim = int(global_nums.data_width * middleRatio)
+    output_dim = int(global_nums.data_width * compressRatio)
 
-    n_features = 6
-    n_layers = 8
+    n_features = global_nums.theta_width
+    n_layers = global_nums.cnf_layers
     hidden_features = 30
     contextF = output_dim
     num_bins = 24

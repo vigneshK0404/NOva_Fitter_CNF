@@ -44,8 +44,8 @@ def DBScan(thetaDist : np.array, clusterDist : float, min_samples : int):
 def ModeMeanShift(thetaDist: np.array, smoothing: float, minRatio: int):
 
     min_freq = max(5, len(thetaDist) // 10000)
-    print(f"min_freq : {min_freq}")
-    bandwidth = estimate_bandwidth(thetaDist, quantile=0.1, n_samples=min(len(thetaDist), 2000)) * smoothing
+    #print(f"min_freq : {min_freq}")
+    bandwidth = estimate_bandwidth(thetaDist, quantile=0.05, n_samples=min(len(thetaDist), 2000)) * smoothing
     
 
     ms = MeanShift(

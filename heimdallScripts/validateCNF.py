@@ -1,13 +1,11 @@
 from modelClasses import CNF, autoEncoder
-from validatePlots import plotHist, ModeMeanShift, plot2DMarginals, DBScan
+from validatePlots import plotHist, ModeMeanShift, plot2DMarginals
 from readCNFROOT import applyStd
 
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-import torchinfo
-import pickle
 import uproot
 
 import global_nums
@@ -72,13 +70,8 @@ def generate_seeds(data_path : str ,base_PATH : str, NumSamples : int,
         samples = CNFModel.flow.sample(NumSamples,context=x_en)
         sample_cut = samples.reshape(-1,samples.shape[-1]).cpu().numpy()
 
-        #print(f"sample_cut : {sample_cut.shape}")
-        #print(f"x_en : {x_en.shape}")
-
-        print("Running MMS")
-        #clusters = DBScan(sample_cut, clusterDist = 1 , min_samples = int(NumSamples/1000))
+    
         clusters = ModeMeanShift(sample_cut, 0.75, 1000)
-        print("Finished MMS")
 
         for cluster in clusters:
             kSamples = cluster.shape[0]
@@ -178,8 +171,10 @@ def valCNF(base_PATH : str, AEModel : autoEncoder, CNFModel : CNF, device, theta
 
 
 if __name__ == "__main__":
+    i_dim = global_nums.data_width
+    t_dim = global_nums.theta_width
 
-    base_PATH = "Models/Increased_AE_Binning_2/"
+    base_PATH = "Models/NOvACNF_ThickerModel/"
     data_path = "data/"
     thetaMean = np.load("data/processed/stats/theta_mean.npy")
     thetaStd = np.load("/raid/vigneshk/data/processed/stats/theta_std.npy") 
@@ -187,13 +182,13 @@ if __name__ == "__main__":
     device = torch.device(f"cuda:{dnumber}" if torch.cuda.is_available() else "cpu")
     print(device) 
 
-    AEModel = autoEncoder(input_dim = 148,
-                          middle_dim = int(148 * middleRatio),
-                          output_dim = int(148 * compressRatio))
+    AEModel = autoEncoder(input_dim = i_dim,
+                          middle_dim = int(i_dim * middleRatio),
+                          output_dim = int(i_dim * compressRatio))
 
-    CNFModel = CNF(n_features=6,
-                   context_features=int(148 * compressRatio), 
-                   n_layers = 8, hidden_features = 30, 
+    CNFModel = CNF(n_features=t_dim,
+                   context_features=int(i_dim * compressRatio), 
+                   n_layers = global_nums.cnf_layers, hidden_features = 30, 
                    num_bins = 24, tails = "linear", 
                    tail_bound = 3.5) 
 
