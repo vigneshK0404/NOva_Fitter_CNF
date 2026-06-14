@@ -1,4 +1,4 @@
-from modelClasses import CNF, autoEncoder
+from modelClasses import CNF, Encoder
 from validatePlots import plotHist, ModeMeanShift, plot2DMarginals
 from readCNFROOT import applyStd
 
@@ -9,7 +9,7 @@ from tqdm import tqdm
 import uproot
 import consts
 
-def GenPreds(base_PATH : str, AEModel : autoEncoder, CNFModel : CNF , device 
+def GenPreds(base_PATH : str, EModel : Encoder, CNFModel : CNF , device 
              ,thetaMean : np.array , thetaStd : np.array, dataTest : np.array, paramsTest : np.array):
 
     batches = DataLoader(dataTest,batch_size=consts.repeatSize,shuffle = False)
@@ -22,7 +22,7 @@ def GenPreds(base_PATH : str, AEModel : autoEncoder, CNFModel : CNF , device
     with torch.no_grad():
         for b in tqdm(batches): #batch
             x = b.to(device)
-            x_en = AEModel(x)
+            x_en = EModel(x)
             x_en_firstExp = x_en.unsqueeze(1).expand(consts.repeatSize,NumSamples,-1).reshape(NumSamples*consts.repeatSize,-1)
             samples = CNFModel.flow.sample(NumSamples,context=x_en)
             sample_cut = samples.reshape(-1,samples.shape[-1])
@@ -46,7 +46,7 @@ def GenPreds(base_PATH : str, AEModel : autoEncoder, CNFModel : CNF , device
 
 
 def generate_seeds(data_path : str ,base_PATH : str, NumSamples : int, 
-                  AEModel : autoEncoder, CNFModel : CNF, device, 
+                  EModel : Encoder, CNFModel : CNF, device, 
                   thetaMean, thetaStd):
 
     file = uproot.open(data_path + "sampleData.root")
@@ -58,7 +58,7 @@ def generate_seeds(data_path : str ,base_PATH : str, NumSamples : int,
     representatives = []
 
     with torch.no_grad():
-        x_en = AEModel(data)
+        x_en = EModel(data)
         samples = CNFModel.flow.sample(NumSamples,context=x_en)
         sample_cut = samples.reshape(-1,samples.shape[-1]).cpu().numpy()
 
@@ -91,7 +91,7 @@ def generate_seeds(data_path : str ,base_PATH : str, NumSamples : int,
     return
 
     
-def singlePred(base_PATH: str,AEModel : autoEncoder, CNFModel : CNF,device,thetaMean,thetaStd,dataTest,paramsTest):
+def singlePred(base_PATH: str,EModel : Encoder, CNFModel : CNF,device,thetaMean,thetaStd,dataTest,paramsTest):
 
     NumSamples = 5000
     kSamples = 500
@@ -104,7 +104,7 @@ def singlePred(base_PATH: str,AEModel : autoEncoder, CNFModel : CNF,device,theta
     centerVals = []
 
     with torch.no_grad():
-        x_en = AEModel(testData)        
+        x_en = EModel(testData)        
         samples = CNFModel.flow.sample(NumSamples,context=x_en)
         sample_cut = samples.reshape(-1,samples.shape[-1])
 
@@ -127,10 +127,10 @@ def singlePred(base_PATH: str,AEModel : autoEncoder, CNFModel : CNF,device,theta
     return trueParams, np.array(centerVals)
                 
 
-def valCNF(base_PATH : str, AEModel : autoEncoder, CNFModel : CNF, device, thetaMean,thetaStd,dataTest,paramsTest):
+def valCNF(base_PATH : str, EModel : Encoder, CNFModel : CNF, device, thetaMean,thetaStd,dataTest,paramsTest):
 
     titles = ["Delta_24","SinSq_24","SinSq_34","SinSq_23","DMsq_41","DMsq_32"]    
-    params, inferRet = GenPreds(base_PATH, AEModel, CNFModel, device,
+    params, inferRet = GenPreds(base_PATH, EModel, CNFModel, device,
                                 thetaMean,thetaStd,dataTest,paramsTest)
     np.save(base_PATH+"inferenceResults",inferRet)
    
@@ -163,13 +163,13 @@ if __name__ == "__main__":
     device = torch.device(f"cuda:{consts.dnumber}" if torch.cuda.is_available() else "cpu")
     print(device) 
 
-    AEModel = autoEncoder(input_dim = consts.input_dim,
+    EModel = Encoder(input_dim = consts.input_dim,
                           middle_dim = consts.middle_dim,
                           output_dim = consts.output_dim)
 
-    CNFModel = CNF(n_features = conts.n_features,
+    CNFModel = CNF(n_features = consts.n_features,
                    context_features = consts.context_features, 
-                   n_layers = consts.n_layers, hidden_features = conts.hidden_features, 
+                   n_layers = consts.n_layers, hidden_features = consts.hidden_features, 
                    num_bins = consts.num_bins, tails = consts.tails, 
                    tail_bound = consts.tail_bound) 
 
@@ -178,14 +178,14 @@ if __name__ == "__main__":
     CNFModel.eval()
     CNFModel = CNFModel.to(device)
 
-    AEModel.load_state_dict(ckpt["AE_Model"])
-    AEModel.eval()
-    AEModel = AEModel.to(device)
+    EModel.load_state_dict(ckpt["E_Model"])
+    EModel.eval()
+    EModel = EModel.to(device)
         
-    generate_seeds(consts.base_path, base_PATH, 100000, AEModel , CNFModel, device, thetaMean, thetaStd)
+    generate_seeds(consts.base_path, base_PATH, 100000, EModel , CNFModel, device, thetaMean, thetaStd)
 
 
     #dataTest = torch.from_numpy(np.load("data/processed/testing/17_data_0.npy")[:300000])
     #paramsTest = np.load("data/processed/testing/17_theta_0.npy")[:300000]
-    #valCNF(base_PATH, AEModel, CNFModel,device, thetaMean,thetaStd,dataTest,paramsTest)
+    #valCNF(base_PATH, EModel, CNFModel,device, thetaMean,thetaStd,dataTest,paramsTest)
     

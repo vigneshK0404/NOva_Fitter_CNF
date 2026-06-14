@@ -10,7 +10,7 @@ import pickle
 from pathlib import Path
 from glob import glob
 
-from validateCNF import valCNF
+from validateCNF import valCNF, generate_seeds
 import consts
 
 def prepare_Models(rank : int, hyper_params : dict):  
@@ -19,7 +19,7 @@ def prepare_Models(rank : int, hyper_params : dict):
 
 
     cnf = CNF(n_features = consts.n_features,
-              context_features= consts.contextF,
+              context_features= consts.context_features,
               n_layers = consts.n_layers,
               hidden_features = consts.hidden_features,
               num_bins = consts.num_bins,
@@ -59,7 +59,7 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hy
     CNFmodel = CNFmodel.train()
     Emodel = Emodel.train()
     theta_paths = sorted(glob(consts.theta_path))
-    data_paths = sorted(glob(consts.data_path)
+    data_paths = sorted(glob(consts.data_path))
     trainer = CNF_trainer(Emodel,CNFmodel, theta_paths, data_paths, rank, batch_size)  
 
     if rank == 0:
@@ -97,8 +97,8 @@ if __name__ == "__main__":
 
         thetaMean = np.load(consts.theta_mean_path)
         thetaStd = np.load(consts.theta_std_path) 
-        dataTest = torch.from_numpy(np.load(consts.test_data_path)[:300000])
-        paramsTest = np.load(consts.test_theta_path)[:300000]
+        #dataTest = torch.from_numpy(np.load(consts.test_data_path)[:300000])
+        #paramsTest = np.load(consts.test_theta_path)[:300000]
 
         dnumber = 0
         device = torch.device(f"cuda:{dnumber}" if torch.cuda.is_available() else "cpu")
@@ -123,8 +123,10 @@ if __name__ == "__main__":
         EModel.eval()
         EModel = EModel.to(device)
 
-        valCNF(PATH, EModel, CNFModel, device,
-                thetaMean,thetaStd,dataTest,paramsTest)
+        #valCNF(PATH, EModel, CNFModel, device,
+        #        thetaMean,thetaStd,dataTest,paramsTest)
+        
+        generate_seeds(consts.base_path, base_PATH, 100000, EModel , CNFModel, device, thetaMean, thetaStd)
 
 
 
