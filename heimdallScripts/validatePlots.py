@@ -4,12 +4,6 @@ import numpy as np
 import pickle
 import torch
 from sklearn.cluster import MeanShift, estimate_bandwidth, DBSCAN
-from matplotlib.ticker import MaxNLocator
-
-
-
-
-EPSILON = 1e-4
 
 def findMode(thetaDist : np.array):
 
@@ -158,23 +152,4 @@ def plotHist(thetaDist : np.array , titles : list, base_PATH : str):
     
     pdf.output(base_PATH + "ThetaPlots.pdf","F")
 
-
-def drawLatent():
-    dataPoisson_latent = torch.tensor(np.load("/raid/vigneshk/data/poissonEncoded.npy")).float()
-    latent_mean = dataPoisson_latent.mean(dim=0)
-    latent_std = dataPoisson_latent.std(dim=0, correction=0)
-
-    dP_std = (dataPoisson_latent - latent_mean) / (latent_std + EPSILON)
-
-    print(f"latent Space : {dP_std}")
-    base = "/raid/vigneshk/plots/LatentPlots/LatentPoissonBin_Std"
     
-    for i in range(10):
-        data = dP_std[:,i]
-        plt.hist(data)
-        plt.savefig(base+str(i)+".png")
-        plt.clf()
-    
-
-
-#drawLatent()

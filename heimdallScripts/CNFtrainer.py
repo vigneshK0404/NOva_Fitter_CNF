@@ -1,4 +1,4 @@
-from modelClasses import ddp_setup, CNF, CNF_trainer, autoEncoder
+from modelClasses import ddp_setup, CNF, CNF_trainer, Encoder
 import torch
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
@@ -11,53 +11,33 @@ from pathlib import Path
 from glob import glob
 
 from validateCNF import valCNF
-import global_nums
+import consts
+
+def prepare_Models(rank : int, hyper_params : dict):  
+
+    e = Encoder(consts.input_dim, consts.middle_dim, consts.output_dim)
 
 
-repeatSize = global_nums.repeatSize
-EPSILON = global_nums.EPSILON
-middleRatio = global_nums.middleRatio
-compressRatio = global_nums.compressRatio
-
-
-
-def prepare_Models(rank : int, hyper_params : dict): 
-    
-    input_dim = 148
-    middle_dim = int(global_nums.data_width * middleRatio)
-    output_dim = int(global_nums.data_width * compressRatio)
-
-    n_features = global_nums.theta_width
-    n_layers = global_nums.cnf_layers
-    hidden_features = 30
-    contextF = output_dim
-    num_bins = 24
-    tails = "linear"
-    tail_bound = 3.5
-
-    ae = autoEncoder(input_dim, middle_dim, output_dim)
-
-
-    cnf = CNF(n_features,
-              context_features= contextF,
-              n_layers=n_layers,
-              hidden_features=hidden_features,
-              num_bins = num_bins,
-              tails = tails,
-              tail_bound = tail_bound)
+    cnf = CNF(n_features = consts.n_features,
+              context_features= consts.contextF,
+              n_layers = consts.n_layers,
+              hidden_features = consts.hidden_features,
+              num_bins = consts.num_bins,
+              tails = consts.tails,
+              tail_bound = consts.tail_bound)
 
     if rank == 0 :
-        temp = {"CNFn_layers" : n_layers,
+        temp = {"CNFn_layers" : consts.n_layers,
                 "Layer Type" : [],
-                "Hidden Width" : hidden_features,
-                "spline_num_bins" : num_bins, 
-                "spline_tails" : tails, 
-                "spline_tail_bound" : tail_bound,
-                "AE middle_dim" : middle_dim,
-                "AE output_dim" : output_dim
+                "Hidden Width" : consts.hidden_features,
+                "spline_num_bins" : consts.num_bins, 
+                "spline_tails" : consts.tails, 
+                "spline_tail_bound" : consts.tail_bound,
+                "E middle_dim" : consts.middle_dim,
+                "E output_dim" : consts.output_dim
                 }
 
-        uniqueLayers = int(len(cnf.transforms) / n_layers)
+        uniqueLayers = int(len(cnf.transforms) / consts.n_layers)
        
         temp_idx = 0
         temp_str = str()
@@ -70,23 +50,21 @@ def prepare_Models(rank : int, hyper_params : dict):
         hyper_params.update(temp)
         print(f"prepareModel : {hyper_params}")
 
-    return ae, cnf
+    return e, cnf
 
-def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hyper_params : dict, base_PATH : str, refined_data_path : str):
+def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hyper_params : dict, base_PATH : str):
     hyper_params = dict(base_hyper_params)
     ddp_setup(rank, world_size)
-    AEmodel, CNFmodel = prepare_Models(rank, hyper_params)
+    Emodel, CNFmodel = prepare_Models(rank, hyper_params)
     CNFmodel = CNFmodel.train()
-    AEmodel = AEmodel.train()
-    theta_paths = sorted(glob(f"{refined_data_path}training/*_theta_*"))
-    data_paths = sorted(glob(f"{refined_data_path}training/*_data_*"))
-    trainer = CNF_trainer(AEmodel,CNFmodel, theta_paths, data_paths, rank, batch_size)  
+    Emodel = Emodel.train()
+    theta_paths = sorted(glob(consts.theta_path))
+    data_paths = sorted(glob(consts.data_path)
+    trainer = CNF_trainer(Emodel,CNFmodel, theta_paths, data_paths, rank, batch_size)  
 
     if rank == 0:
         hyper_params["Optimizer"] = str(trainer.optimizer)
         PATH = base_PATH + "hP.bin" 
-        #print(f"main : {hyper_params}")
-
         with open(PATH, 'wb') as handle:
             pickle.dump(hyper_params, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -97,8 +75,6 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hy
 
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()
-    batch_size = 4096
-    total_epochs = 14
 
     args = sys.argv
     runVal = args[1]
@@ -109,49 +85,45 @@ if __name__ == "__main__":
 
     CNF_hyperParams = {}
 
-    CNF_hyperParams =  {"batch_size" : batch_size,
+    CNF_hyperParams =  {"batch_size" : consts.batch_size,
              "Grad Clip" : True,
-             "Epochs" : total_epochs}
+             "Epochs" : consts.total_epochs}
 
-    print(f"Before : {CNF_hyperParams}")
-
-    refined_data_path = "data/processed/"
-
-    mp.spawn(main, args=(world_size, total_epochs, batch_size, CNF_hyperParams, PATH, refined_data_path), nprocs=world_size) 
+    mp.spawn(main, args=(world_size, consts.total_epochs, consts.batch_size, CNF_hyperParams, PATH), nprocs=world_size) 
     
     print("Finished")
     
     if runVal == "True" :
 
-        thetaMean = np.load("data/processed/stats/theta_mean.npy")
-        thetaStd = np.load("data/processed/stats/theta_std.npy") 
+        thetaMean = np.load(consts.theta_mean_path)
+        thetaStd = np.load(consts.theta_std_path) 
+        dataTest = torch.from_numpy(np.load(consts.test_data_path)[:300000])
+        paramsTest = np.load(consts.test_theta_path)[:300000]
 
-        dataTest = torch.from_numpy(np.load("data/processed/testing/17_data_0.npy")[:300000])
-        paramsTest = np.load("data/processed/testing/17_theta_0.npy")[:300000]
         dnumber = 0
         device = torch.device(f"cuda:{dnumber}" if torch.cuda.is_available() else "cpu")
         print(device)
 
-        AEModel = autoEncoder(input_dim = int(dataTest.shape[1]),
-                              middle_dim = int(dataTest.shape[1] * middleRatio),
-                              output_dim = int(dataTest.shape[1] * compressRatio))
+        EModel = Encoder(input_dim = consts.input_dim,
+                         middle_dim = consts.middle_dim,
+                         output_dim = consts.output_dim)
 
-        CNFModel = CNF(n_features=int(paramsTest.shape[1]),
-                       context_features=int(dataTest.shape[1] * compressRatio), 
-                       n_layers = 8, hidden_features = 30, 
-                       num_bins = 24, tails = "linear", 
-                       tail_bound = 3.5) 
+        CNFModel = CNF(n_features = consts.n_features,
+                       context_features = consts.context_features, 
+                       n_layers = consts.n_layers, hidden_features = consts.hidden_features, 
+                       num_bins = consts.num_bins, tails = consts.tails, 
+                       tail_bound = consts.tail_bound) 
 
         ckpt = torch.load(PATH + "Model_checkpoint.pt", map_location=device)
         CNFModel.load_state_dict(ckpt["CNF_Model"])
         CNFModel.eval()
         CNFModel = CNFModel.to(device)
 
-        AEModel.load_state_dict(ckpt["AE_Model"])
-        AEModel.eval()
-        AEModel = AEModel.to(device)
+        EModel.load_state_dict(ckpt["E_Model"])
+        EModel.eval()
+        EModel = EModel.to(device)
 
-        valCNF(PATH, AEModel, CNFModel, device,
+        valCNF(PATH, EModel, CNFModel, device,
                 thetaMean,thetaStd,dataTest,paramsTest)
 
 

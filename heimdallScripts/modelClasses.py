@@ -11,11 +11,9 @@ from nflows.transforms.base import (
     CompositeTransform,
 )
 from nflows.transforms.autoregressive import (
-    MaskedAffineAutoregressiveTransform,
+    MaskedAffineAutoregressiveTransform, MaskedPiecewiseRationalQuadraticAutoregressiveTransform,
 )
-from nflows.transforms.autoregressive import (
-    MaskedPiecewiseRationalQuadraticAutoregressiveTransform,
-)
+
 from nflows.transforms.permutations import ReversePermutation
 
 #parallelizing
@@ -26,7 +24,6 @@ from torch.distributed import init_process_group, destroy_process_group
 import os
 
 import numpy as np
-import time
 
 def printNormGrad(parameters : torch.tensor):
     total = 0
@@ -45,7 +42,7 @@ def ddp_setup(rank : int, world_size: int):
     init_process_group(backend="nccl", rank=rank, world_size=world_size)
 
 
-class autoEncoder(torch.nn.Module):
+class Encoder(torch.nn.Module):
     def __init__(self, 
                  input_dim : int, 
                  middle_dim : int, 
@@ -126,7 +123,7 @@ def prepare_dataloader(dataset: Dataset, batch_size: int):
 
 class CNF_trainer():
     def __init__(self,
-                 AEModel : autoEncoder,
+                 EModel : Encoder,
                  CNFModel : CNF,
                  theta_paths: str,
                  data_paths : str,
@@ -136,9 +133,9 @@ class CNF_trainer():
 
         
         self.gpu_id = gpu_id
-        self.AEModel = AEModel.to(gpu_id)
+        self.EModel = EModel.to(gpu_id)
         self.CNFModel = CNFModel.to(gpu_id)
-        self.AEModel = DDP(self.AEModel, device_ids=[gpu_id])
+        self.EModel = DDP(self.EModel, device_ids=[gpu_id])
         self.CNFModel = DDP(self.CNFModel, device_ids=[gpu_id])
         self.cnf_losses = []
         self.data_paths = data_paths
@@ -149,7 +146,7 @@ class CNF_trainer():
 
         
         self.optimizer = torch.optim.Adam([
-            {"params": self.AEModel.parameters(), "lr": 1e-3}, 
+            {"params": self.EModel.parameters(), "lr": 1e-3}, 
             {"params": self.CNFModel.parameters(), "lr": 1e-3}
             ])
 
@@ -157,16 +154,16 @@ class CNF_trainer():
 
     def _run_batch(self, x_input, x_cond,record_loss : bool):
         self.optimizer.zero_grad()
-        z_cond = self.AEModel(x_cond)
+        z_cond = self.EModel(x_cond)
         nll = - self.CNFModel(x_input, context=z_cond)
         cnf_loss = nll.mean()
         cnf_loss.backward()
 
         """
         if self.gpu_id == 0 :
-            aeGrad = printNormGrad(self.AEModel.parameters())
+            eGrad = printNormGrad(self.EModel.parameters())
             cnfGrad = printNormGrad(self.CNFModel.parameters())
-            print(f"AE : {aeGrad} CNF : {cnfGrad} total : {(aeGrad*aeGrad+cnfGrad*cnfGrad)**0.5}")
+            print(f"E : {eGrad} CNF : {cnfGrad} total : {(eGrad*eGrad+cnfGrad*cnfGrad)**0.5}")
         """
         
         torch.nn.utils.clip_grad_norm_(self.CNFModel.parameters(),max_norm = 28.0)
@@ -215,8 +212,8 @@ class CNF_trainer():
         torch.save({
         "CNF_Model": self.CNFModel.module.state_dict(),
         "CNF_Optim": self.optimizer.state_dict(),
-        "AE_Model": self.AEModel.module.state_dict(),
-        "AE_Optim": self.optimizer.state_dict(),
+        "E_Model": self.EModel.module.state_dict(),
+        "E_Optim": self.optimizer.state_dict(),
         },  PATH + "Model_checkpoint.pt")
 
         print(f"Training checkpoint saved at {PATH}")

@@ -1,38 +1,10 @@
 import numpy as np
 import uproot
-import matplotlib.pyplot as plt
-import pickle
 from pathlib import Path
 from glob import glob
 from tqdm import tqdm
 import os 
-import global_nums
-
-uniqueSample = global_nums.uniqueSample
-repeatSize = global_nums.repeatSize
-EPSILON = global_nums.EPSILON
-dnumber = global_nums.dnumber
-
-
-
-EPSILON
-
-def plotBinnedData(data : np.array, path : str):
-    print("OLD function do not use")
-    binList = [22,22,22,22,14,14,13,13,6]
-
-    index = 0
-    idx = 0
-
-    for i in binList:
-        slicedData = data[index:i+index]
-        plt.bar(range(index,index+i),slicedData,color="C"+str(idx),edgecolor="black")         
-        idx += 1
-        index += i
-        #plt.clf()
-
-    plt.savefig(path+".png")
-
+import consts
 
 def calculate_std(base_path : str):
 
@@ -50,7 +22,7 @@ def calculate_std(base_path : str):
     for file_name in tqdm(files):
         x = np.load(file_name)
         theta = x["params"]
-        theta_unique = theta[::repeatSample,:]
+        theta_unique = theta[::consts.repeatSize,:]
 
         theta_sum += theta_unique.sum(axis=0)
         num_samples += len(theta_unique)
@@ -73,11 +45,11 @@ def calculate_std(base_path : str):
     data_mean = data_sum/num_data
     data_std = np.sqrt((data_sq_sum/num_data) - np.square(data_mean))
     
-    np.save(f"{base_path}processed/stats/theta_mean",theta_mean)
-    np.save(f"{base_path}processed/stats/theta_std",theta_std)
+    np.save(consts.theta_mean_path,theta_mean)
+    np.save(consts.theta_std_path,theta_std)
 
-    np.save(f"{base_path}processed/stats/data_mean",data_mean)
-    np.save(f"{base_path}processed/stats/data_std",data_std)
+    np.save(consts.data_mean_path,data_mean)
+    np.save(consts.data_std_path,data_std)
 
     
     return
@@ -87,11 +59,11 @@ def applyStd(base_path : str, apply_site : str): #apply_site is either training 
 
     files = sorted(glob(f"{base_path}{apply_site}/*.npz"))
 
-    theta_mean = np.load(f"{base_path}processed/stats/theta_mean.npy")
-    theta_std = np.load(f"{base_path}processed/stats/theta_std.npy")
+    theta_mean = np.load(consts.theta_mean_path)
+    theta_std = np.load(consts.theta_std_path)
     
-    data_mean = np.load(f"{base_path}processed/stats/data_mean.npy")
-    data_std = np.load(f"{base_path}processed/stats/data_std.npy") 
+    data_mean = np.load(consts.data_mean_path)
+    data_std = np.load(consts.data_std_path) 
 
 
     data_output_path = f"{base_path}processed/{apply_site}"
@@ -101,12 +73,12 @@ def applyStd(base_path : str, apply_site : str): #apply_site is either training 
         x = np.load(file_name)
         theta = x["params"]
         theta -= theta_mean
-        theta /= (theta_std + EPSILON)
+        theta /= (theta_std + consts.EPSILON)
     
         data_AT = 2 * np.sqrt(x["data"] + 3/8)
 
         data_AT -= data_mean
-        data_AT /= (data_std + EPSILON)
+        data_AT /= (data_std + consts.EPSILON)
 
         data_AT = data_AT.astype(np.float32, copy=False)
         theta = theta.astype(np.float32, copy=False)
@@ -134,32 +106,17 @@ def applyStd(base_path : str, apply_site : str): #apply_site is either training 
 
 def applyStd(data): #overload for validation
   
-    data_mean = np.load(f"data/processed/stats/data_mean.npy")
-    data_std = np.load(f"data/processed/stats/data_std.npy") 
+    data_mean = np.load(consts.data_mean_path)
+    data_std = np.load(consts.data_std_path) 
 
     data_AT = 2 * np.sqrt(data + 3/8)
     data_AT -= data_mean
-    data_AT /= (data_std + EPSILON)
+    data_AT /= (data_std + consts.EPSILON)
 
     data_AT = data_AT.astype(np.float32, copy=False)
     
     return data_AT
 
- 
-
-def getSterileData(base_path : str):
- 
-    #calculate_std(base_path)
-
-    print("Calculated Standardizations")
-
-    #applyStd(base_path, "training")
-
-    print("Standardized and Randomized Training Data")    
-
-    applyStd(base_path, "testing")
-
-    print("Standardized Testing Data. Complete")
 
 
 def unpacknpz(base_path : str, handle : str):
@@ -178,10 +135,23 @@ def unpacknpz(base_path : str, handle : str):
         os.remove(file_name)
 
 
+def getSterileData(base_path : str):
+ 
+    #calculate_std(base_path)
+
+    print("Calculated Standardizations")
+
+    #applyStd(base_path, "training")
+
+    print("Standardized and Randomized Training Data")    
+
+    applyStd(base_path, "testing")
+
+    print("Standardized Testing Data. Complete")
        
 
 if __name__ == "__main__":
-    base_path = "data/"
+    base_path = consts.base_path
     getSterileData(base_path)
     #unpacknpz(base_path,"training")
     #unpacknpz(base_path,"testing")
