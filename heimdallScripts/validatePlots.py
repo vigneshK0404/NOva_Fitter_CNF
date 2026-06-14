@@ -28,7 +28,6 @@ def findMode(thetaDist : np.array):
 def DBScan(thetaDist : np.array, clusterDist : float, min_samples : int):
     db = DBSCAN(eps = clusterDist, min_samples = min_samples).fit(thetaDist)
     uniqueClusters = set(db.labels_)
-    uniqueClusters.discard(-1)
     
    
     clusters = []
@@ -44,18 +43,29 @@ def DBScan(thetaDist : np.array, clusterDist : float, min_samples : int):
 
 def ModeMeanShift(thetaDist: np.array, smoothing: float, minRatio: int):
 
-    bandwidth = estimate_bandwidth(thetaDist, quantile=0.2, n_samples=1000) * smoothing
-    min_freq = int(thetaDist.shape[0] / minRatio)
+    min_freq = max(5, len(thetaDist) // 10000)
+    print(f"min_freq : {min_freq}")
+    bandwidth = estimate_bandwidth(thetaDist, quantile=0.1, n_samples=min(len(thetaDist), 2000)) * smoothing
+    
 
     ms = MeanShift(
         bandwidth=bandwidth,
         bin_seeding=True,
-        max_iter=100,
-        min_bin_freq=min_freq
+        max_iter=300,
+        min_bin_freq=min_freq,
+        cluster_all = False
     )
 
-    ms.fit(thetaDist)
-    return ms.cluster_centers_
+    labels = ms.fit_predict(thetaDist)
+
+
+    clusters = []
+
+    for i in np.unique(labels):
+        mask = (labels == i)
+        clusters.append(thetaDist[mask])
+
+    return clusters
 
 def plot2DMarginals(truth : np.array, thetaDist : np.array, titles : list, base_PATH : str):
 

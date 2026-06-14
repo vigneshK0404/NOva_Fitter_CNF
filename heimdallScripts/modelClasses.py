@@ -55,6 +55,10 @@ class autoEncoder(torch.nn.Module):
         self.encoder = torch.nn.Sequential(
             torch.nn.Linear(input_dim,middle_dim),
             torch.nn.ReLU(),
+            torch.nn.Linear(middle_dim,middle_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(middle_dim,middle_dim),
+            torch.nn.ReLU(),
             torch.nn.Linear(middle_dim,output_dim)
         )
     def forward(self,x):
@@ -115,7 +119,7 @@ def prepare_dataloader(dataset: Dataset, batch_size: int):
         pin_memory=True,
         shuffle=False,
         sampler=DistributedSampler(dataset, shuffle = True),
-        num_workers = 4,
+        num_workers = 1,
         prefetch_factor = 2
     )
 
@@ -158,13 +162,14 @@ class CNF_trainer():
         cnf_loss = nll.mean()
         cnf_loss.backward()
 
-        """if self.gpu_id == 0 :
+        """
+        if self.gpu_id == 0 :
             aeGrad = printNormGrad(self.AEModel.parameters())
             cnfGrad = printNormGrad(self.CNFModel.parameters())
             print(f"AE : {aeGrad} CNF : {cnfGrad} total : {(aeGrad*aeGrad+cnfGrad*cnfGrad)**0.5}")
         """
         
-        torch.nn.utils.clip_grad_norm_(self.CNFModel.parameters(),max_norm = 33.0)
+        torch.nn.utils.clip_grad_norm_(self.CNFModel.parameters(),max_norm = 28.0)
 
         self.optimizer.step()
 
@@ -188,7 +193,7 @@ class CNF_trainer():
                 #print(x_batch.shape, x_cond.shape)
                 x_batch = x_batch.to(self.gpu_id, non_blocking = True)
                 x_cond = x_cond.to(self.gpu_id, non_blocking = True)
-                loss_rec = self._run_batch(x_batch,x_cond,record_loss = (counter % 1000 == 0))
+                loss_rec = self._run_batch(x_batch,x_cond,record_loss = (counter % 10000 == 0))
 
                 if loss_rec is not None:
                     self.cnf_losses.append(loss_rec)

@@ -10,32 +10,32 @@ import torchinfo
 import pickle
 import uproot
 
+import global_nums
 
-EPSILON = 1e-3
-repeatSize = 10
-middleRatio = 1
-compressRatio = 1
-dnumber = 0
+
+repeatSize = global_nums.repeatSize
+EPSILON = global_nums.EPSILON
+middleRatio = global_nums.middleRatio
+compressRatio = global_nums.compressRatio
+dnumber = global_nums.dnumber
 
 
 def GenPreds(base_PATH : str, AEModel : autoEncoder, CNFModel : CNF , device ,thetaMean,thetaStd,dataTest,paramsTest):
-     
+
     batches = DataLoader(dataTest,batch_size=repeatSize,shuffle = False)
     trueParams = (paramsTest[::repeatSize,:] * (thetaStd + EPSILON)) + thetaMean
     centerVals = []
     percDiffarr = []
     NumSamples = 1000
-    kSamples = 1000
+    kSamples = 1000 
 
     with torch.no_grad():
         for b in tqdm(batches): #batch
             x = b.to(device)
             x_en = AEModel(x)
-            #x_en_rep = x_en.mean(dim=0)
+            x_en_firstExp = x_en.unsqueeze(1).expand(repeatSize,NumSamples,-1).reshape(NumSamples*repeatSize,-1)
             samples = CNFModel.flow.sample(NumSamples,context=x_en)
             sample_cut = samples.reshape(-1,samples.shape[-1])
-
-            x_en_firstExp = x_en.unsqueeze(1).expand(repeatSize,NumSamples,-1).reshape(NumSamples*repeatSize,-1)
             firstPass = CNFModel(sample_cut,x_en_firstExp)
             topidx = firstPass.topk(kSamples).indices
 
@@ -55,37 +55,52 @@ def GenPreds(base_PATH : str, AEModel : autoEncoder, CNFModel : CNF , device ,th
 
 
 
-def GenPrediction(base_PATH : str, NumSamples : int, 
+def generate_seeds(data_path : str ,base_PATH : str, NumSamples : int, 
                   AEModel : autoEncoder, CNFModel : CNF, device, 
                   thetaMean, thetaStd):
 
-    file = uproot.open(base_path + "sampleData.root")
+    file = uproot.open(data_path + "sampleData.root")
     tree = file["dataTree"]
-    data = torch.tensor(np.array(tree["data"]),device=device).float()
-    data = applyStd(data)
+    branches = tree.arrays()
+    data = np.array(branches["data"],dtype=np.int32)
+    data = torch.tensor(applyStd(data), device=device).float()
 
     representatives = []
 
     with torch.no_grad():
         x_en = AEModel(data)
         samples = CNFModel.flow.sample(NumSamples,context=x_en)
-        sample_cut = samples.reshape(-1,samples.shape[-1])
+        sample_cut = samples.reshape(-1,samples.shape[-1]).cpu().numpy()
 
-        clusters = DBScan(sample_cut, clusterDist = 0.5 , min_samples = int(NumSamples/100)).cpu().numpy()
+        #print(f"sample_cut : {sample_cut.shape}")
+        #print(f"x_en : {x_en.shape}")
 
+        print("Running MMS")
+        #clusters = DBScan(sample_cut, clusterDist = 1 , min_samples = int(NumSamples/1000))
+        clusters = ModeMeanShift(sample_cut, 0.75, 1000)
+        print("Finished MMS")
 
         for cluster in clusters:
             kSamples = cluster.shape[0]
             cluster = torch.tensor(cluster,device=device).float()
             x_en_Exp = x_en.unsqueeze(1).expand(1,kSamples,-1).reshape(kSamples,-1)
+            #print(f"x_en_Exp : {x_en_Exp.shape}")
             firstPass = CNFModel(cluster,x_en_Exp)
             infer = cluster[torch.argmax(firstPass)].cpu().numpy()
             representatives.append((infer * (thetaStd + EPSILON)) + thetaMean)   
    
-    reps = np.array(representatives)
+    reps = np.asarray(representatives,dtype=np.float32)
     print(reps)
-    with uproot.recreate("cnfpreds.root") as f:
-        f["tree"] = {"preds" : reps}
+
+
+    if reps.ndim == 1:
+        reps = reps.reshape(1, -1)
+
+    assert reps.shape[1] == 6, reps.shape
+
+    with uproot.recreate(f"{data_path}cnfpreds.root") as f:
+        f.mktree("tree", {"reps": "6 * float32"})
+        f["tree"].extend({"reps": reps})
 
 
     return
@@ -164,23 +179,20 @@ def valCNF(base_PATH : str, AEModel : autoEncoder, CNFModel : CNF, device, theta
 
 if __name__ == "__main__":
 
-    base_PATH = "/raid/vigneshk/Models/NOvACNF_TM/"
-
-    thetaMean = np.load("/raid/vigneshk/data/paramsMean.npy")
-    thetaStd = np.load("/raid/vigneshk/data/paramsStd.npy") 
-
-    dataTest = torch.tensor(np.load("/raid/vigneshk/data/dataTest.npy")).float()
-    paramsTest = np.load("/raid/vigneshk/data/paramsTest.npy")
+    base_PATH = "Models/Increased_AE_Binning_2/"
+    data_path = "data/"
+    thetaMean = np.load("data/processed/stats/theta_mean.npy")
+    thetaStd = np.load("/raid/vigneshk/data/processed/stats/theta_std.npy") 
 
     device = torch.device(f"cuda:{dnumber}" if torch.cuda.is_available() else "cpu")
     print(device) 
 
-    AEModel = autoEncoder(input_dim = int(dataTest.shape[1]),
-                          middle_dim = int(dataTest.shape[1] * middleRatio),
-                          output_dim = int(dataTest.shape[1] * compressRatio))
+    AEModel = autoEncoder(input_dim = 148,
+                          middle_dim = int(148 * middleRatio),
+                          output_dim = int(148 * compressRatio))
 
-    CNFModel = CNF(n_features=int(paramsTest.shape[1]),
-                   context_features=int(dataTest.shape[1] * compressRatio), 
+    CNFModel = CNF(n_features=6,
+                   context_features=int(148 * compressRatio), 
                    n_layers = 8, hidden_features = 30, 
                    num_bins = 24, tails = "linear", 
                    tail_bound = 3.5) 
@@ -193,9 +205,12 @@ if __name__ == "__main__":
     AEModel.load_state_dict(ckpt["AE_Model"])
     AEModel.eval()
     AEModel = AEModel.to(device)
+        
+    generate_seeds(data_path,base_PATH, 100000, AEModel , CNFModel, device, thetaMean, thetaStd)
 
-    GenPrediction(base_PATH, 10000, AEModel , CNFModel, device, thetaMean, thetaStd)
 
+    #dataTest = torch.from_numpy(np.load("data/processed/testing/17_data_0.npy")[:300000])
+    #paramsTest = np.load("data/processed/testing/17_theta_0.npy")[:300000]
     #valCNF(base_PATH, AEModel, CNFModel,device, thetaMean,thetaStd,dataTest,paramsTest)
     
 

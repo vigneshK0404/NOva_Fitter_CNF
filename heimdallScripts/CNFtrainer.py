@@ -11,10 +11,14 @@ from pathlib import Path
 from glob import glob
 
 from validateCNF import valCNF
+import global_nums
 
 
-middleRatio = 0.9
-compressRatio = 0.8
+repeatSize = global_nums.repeatSize
+EPSILON = global_nums.EPSILON
+middleRatio = global_nums.middleRatio
+compressRatio = global_nums.compressRatio
+
 
 
 def prepare_Models(rank : int, hyper_params : dict): 
@@ -94,7 +98,7 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hy
 if __name__ == "__main__":
     world_size = torch.cuda.device_count()
     batch_size = 4096
-    total_epochs = 3
+    total_epochs = 14
 
     args = sys.argv
     runVal = args[1]
@@ -118,18 +122,15 @@ if __name__ == "__main__":
     print("Finished")
     
     if runVal == "True" :
-        print(runVal)
-        thetaMean = np.load(f"{refined_data_path}stats/theta_mean.npy")
-        thetaStd = np.load(f"{refined_data_path}stats/theta_std.npy") 
 
-        x = np.load("{refined_data_path}testing/17.npz")
-        dataTest = torch.from_numpy(x["data"])
-        paramsTest = x["params"]
+        thetaMean = np.load("data/processed/stats/theta_mean.npy")
+        thetaStd = np.load("data/processed/stats/theta_std.npy") 
 
+        dataTest = torch.from_numpy(np.load("data/processed/testing/17_data_0.npy")[:300000])
+        paramsTest = np.load("data/processed/testing/17_theta_0.npy")[:300000]
         dnumber = 0
-
         device = torch.device(f"cuda:{dnumber}" if torch.cuda.is_available() else "cpu")
-        print(device) 
+        print(device)
 
         AEModel = autoEncoder(input_dim = int(dataTest.shape[1]),
                               middle_dim = int(dataTest.shape[1] * middleRatio),

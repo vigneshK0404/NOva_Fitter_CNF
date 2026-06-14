@@ -6,10 +6,16 @@ from pathlib import Path
 from glob import glob
 from tqdm import tqdm
 import os 
+import global_nums
 
-repeatSample = 150
-uniqueSample = 100000
-EPSILON = 1e-3
+uniqueSample = global_nums.uniqueSample
+repeatSize = global_nums.repeatSize
+EPSILON = global_nums.EPSILON
+dnumber = global_nums.dnumber
+
+
+
+EPSILON
 
 def plotBinnedData(data : np.array, path : str):
     print("OLD function do not use")
@@ -124,15 +130,30 @@ def applyStd(base_path : str, apply_site : str): #apply_site is either training 
         os.remove(file_name)
 
     return
+
+
+def applyStd(data): #overload for validation
+  
+    data_mean = np.load(f"data/processed/stats/data_mean.npy")
+    data_std = np.load(f"data/processed/stats/data_std.npy") 
+
+    data_AT = 2 * np.sqrt(data + 3/8)
+    data_AT -= data_mean
+    data_AT /= (data_std + EPSILON)
+
+    data_AT = data_AT.astype(np.float32, copy=False)
+    
+    return data_AT
+
  
 
 def getSterileData(base_path : str):
  
-    calculate_std(base_path)
+    #calculate_std(base_path)
 
     print("Calculated Standardizations")
 
-    applyStd(base_path, "training")
+    #applyStd(base_path, "training")
 
     print("Standardized and Randomized Training Data")    
 
