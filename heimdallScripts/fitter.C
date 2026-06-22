@@ -18,51 +18,10 @@ using namespace ana;
 
 const std::string optSpace = "th24vsdm41";
 const std::string opt = "";
-const std::string optSysts = "all"; //all
-                                    
-
-void createExp()
-{
-   
-    nus5p1::PISCESHelper ph;
-    auto samples = ph.GetSamplesFromOptString("numusel_ncres30sel_nuonesel_fhc_rhc_neardet_fardet",kPredNoSysts,true);
-    auto mx = ph.GetMatrix(samples, optSysts).release();
-    auto calc = nus5p1::GetOscCalcForFitting(optSpace, opt);
-    nus22::SetParams(calc,"3flav");
-
-    nus5p1::SetData(samples,mx,1,opt);
-    auto expt = nus5p1::GetExperiment(samples, mx, opt);    
-    auto fitVars = nus5p1::GetFitVars(optSpace, opt, true); 
-    auto multiExp = nus5p1::AddConstraints(samples,&expt,opt);
-    
-    double chiSQ = multiExp.ChiSq(calc);
-    std::cout << "null: " <<chiSQ << "\n";
-
-    std::vector<double> expVec;
-    expVec.reserve(148);
-
-    std::string outfile = "sampleData.root";
-    auto file = ROOTFile(outfile,"recreate");
-    TDirectory* fDir = file->mkdir("CNFData");
-    file->cd();
-
-    TTree* t = new TTree("dataTree","dataTree");
-    t->Branch("data",&expVec);
-
-    for(pisces::Sample& samp: samples)
-    {
-        Spectrum spec = samp.Data();
-        Eigen::ArrayXd eigenArray = spec.GetEigen();
-        expVec.insert(std::end(expVec),std::begin(eigenArray)+1,std::end(eigenArray)-1);
-    }
-
-    t->Fill();
-    t->Print();
-    t->Write();
-    file->Write();
-    file->Close();   
-
-}
+const std::string optSysts = "all";
+const std::string optSamples = "numusel_ncres30sel_nuonesel_fhc_rhc_neardet_fardet";
+const int randSeeds[10] = {1,32,45,67,99,101,108,130,164,211};
+const int totalBins = 148;
 
 void printCalc(osc::IOscCalcAdjustable* calc)
 {
@@ -73,6 +32,58 @@ void printCalc(osc::IOscCalcAdjustable* calc)
         << " dmsq41 : " << kFitDmSq41Sterile.GetValue(calc) << " , "
         << " dmsq32 : " << kFitDmSq32Sterile.GetValue(calc) << std::endl;
     
+}
+
+void createExp()
+{
+    //Samples and CovMatrix
+    nus5p1::PISCESHelper ph;
+    auto samples = ph.GetSamplesFromOptString(optSamples,kPredNoSysts,true);
+    auto mx = ph.GetMatrix(samples, optSysts).release();
+
+    //init calc
+    auto calc_null = nus5p1::GetOscCalcForFitting(optSpace, opt);
+    nus22::SetParams(calc_null,"3flav");
+
+    //create root file
+    std::string outfile = "sampleData.root";
+    auto file = ROOTFile(outfile,"recreate");
+    TDirectory* fDir = file->mkdir("CNFData");
+    file->cd();
+
+    std::vector<double> expVec;
+    expVec.reserve(totalBins);
+
+    TTree* t = new TTree("dataTree","dataTree");
+    t->Branch("data",&expVec);
+
+    
+    for(const int& s : randSeeds)
+    {
+
+        nus5p1::SetData(samples,mx,s,opt);
+        auto expt = nus5p1::GetExperiment(samples, mx, opt);    
+        auto multiExp = nus5p1::AddConstraints(samples,&expt,opt);
+ 
+        std::cout << "null: " << multiExp.ChiSq(calc_null) << "\n";
+ 
+        for(pisces::Sample& samp: samples)
+        {
+            Spectrum spec = samp.Data();
+            Eigen::ArrayXd eigenArray = spec.GetEigen();
+            expVec.insert(std::end(expVec),std::begin(eigenArray)+1,std::end(eigenArray)-1);
+        }
+
+
+        t->Fill();
+        expVec.clear();
+
+    } 
+        
+    t->Print();
+    file->Write();
+    file->Close();   
+
 }
 
 void checkInference()
@@ -151,8 +162,8 @@ void checkInference()
 
 void fitter()
 {
-    //createExp();
-    checkInference();
+    createExp();
+    //checkInference();
 
       
 }

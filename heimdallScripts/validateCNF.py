@@ -55,28 +55,42 @@ def generate_seeds(data_path : str ,base_PATH : str, NumSamples : int,
     data = np.array(branches["data"],dtype=np.int32)
     data = torch.tensor(applyStd(data), device=device).float()
 
-    representatives = []
+    rep_list = []
 
     with torch.no_grad():
         x_en = EModel(data)
         samples = CNFModel.flow.sample(NumSamples,context=x_en)
         sample_cut = samples.reshape(-1,samples.shape[-1]).cpu().numpy()
+        
+        data_bunches = np.array_split(sample_cut,len(data))
+        theta_bunches = torch.split(x_en,1)
+ 
 
-    
-        clusters = ModeMeanShift(sample_cut, 0.75, 1000)
+        for true_theta, bunch in zip(theta_bunches, data_bunches):
+            assert len(bunch) == NumSamples, len(bunch)
+            assert len(true_theta) == 1, len(true_theta)
 
-        for cluster in clusters:
-            kSamples = cluster.shape[0]
-            cluster = torch.tensor(cluster,device=device).float()
-            x_en_Exp = x_en.unsqueeze(1).expand(1,kSamples,-1).reshape(kSamples,-1)
-            #print(f"x_en_Exp : {x_en_Exp.shape}")
-            firstPass = CNFModel(cluster,x_en_Exp)
-            infer = cluster[torch.argmax(firstPass)].cpu().numpy()
-            representatives.append((infer * (thetaStd + consts.EPSILON)) + thetaMean)   
+            representatives = []
+            clusters = ModeMeanShift(bunch, 0.75, 1000)
+
+            for cluster in clusters:
+                kSamples = cluster.shape[0]
+                cluster = torch.tensor(cluster,device=device).float()
+                x_en_Exp = true_theta.unsqueeze(1).expand(1,kSamples,-1).reshape(kSamples,-1)
+                firstPass = CNFModel(cluster,x_en_Exp)
+                infer = cluster[torch.argmax(firstPass)]
+                representatives.append(infer)   
    
-    reps = np.asarray(representatives,dtype=np.float32)
-    print(reps)
+            reps = torch.stack(representatives)
+            x_en_reps = true_theta.unsqueeze(1).expand(1,len(reps),-1).reshape(len(reps),-1)
+            logRankings = CNFModel(reps,x_en_reps).argsort()
+            rep_list.append(np.asarray(reps[logRankings][:5].cpu())) 
 
+        final_reps = np.stack(reps)
+        final_reps *= (thetaStd + consts.EPSILON) + thetaMean
+        print(final_reps)
+
+    #TODO: sort the reps for each bunch by log liklihood and then take the top 5. Then save all to a tree 5 at a time. 
 
     if reps.ndim == 1:
         reps = reps.reshape(1, -1)
@@ -178,11 +192,11 @@ if __name__ == "__main__":
     CNFModel.eval()
     CNFModel = CNFModel.to(device)
 
-    EModel.load_state_dict(ckpt["E_Model"])
+    EModel.load_state_dict(ckpt["AE_Model"])
     EModel.eval()
     EModel = EModel.to(device)
         
-    generate_seeds(consts.base_path, base_PATH, 100000, EModel , CNFModel, device, thetaMean, thetaStd)
+    generate_seeds(consts.base_path, base_PATH, 50000, EModel , CNFModel, device, thetaMean, thetaStd)
 
 
     #dataTest = torch.from_numpy(np.load("data/processed/testing/17_data_0.npy")[:300000])
