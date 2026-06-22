@@ -66,12 +66,13 @@ def generate_seeds(data_path : str ,base_PATH : str, NumSamples : int,
         theta_bunches = torch.split(x_en,1)
  
 
-        for true_theta, bunch in zip(theta_bunches, data_bunches):
+        for true_theta, bunch in tqdm(zip(theta_bunches, data_bunches)):
             assert len(bunch) == NumSamples, len(bunch)
             assert len(true_theta) == 1, len(true_theta)
 
             representatives = []
             clusters = ModeMeanShift(bunch, 0.75, 1000)
+            print(f"Num Clusters : {len(clusters)}")
 
             for cluster in clusters:
                 kSamples = cluster.shape[0]
@@ -83,25 +84,19 @@ def generate_seeds(data_path : str ,base_PATH : str, NumSamples : int,
    
             reps = torch.stack(representatives)
             x_en_reps = true_theta.unsqueeze(1).expand(1,len(reps),-1).reshape(len(reps),-1)
-            logRankings = CNFModel(reps,x_en_reps).argsort()
-            rep_list.append(np.asarray(reps[logRankings][:5].cpu())) 
+            logRankings = CNFModel(reps,x_en_reps).argsort(descending=True)
+            rep_list.append(np.asarray(reps[logRankings][:consts.topExps].cpu())) 
 
-        final_reps = np.stack(reps)
-        final_reps *= (thetaStd + consts.EPSILON) + thetaMean
-        print(final_reps)
-
-    #TODO: sort the reps for each bunch by log liklihood and then take the top 5. Then save all to a tree 5 at a time. 
-
-    if reps.ndim == 1:
-        reps = reps.reshape(1, -1)
-
-    assert reps.shape[1] == 6, reps.shape
+    final_reps = np.stack(rep_list)
+    final_reps *= (thetaStd + consts.EPSILON)
+    final_reps += thetaMean
+    final_reps = final_reps.astype(np.float32).reshape(consts.topExps*len(data),-1)
+    print(final_reps)
 
     with uproot.recreate(f"{data_path}cnfpreds.root") as f:
-        f.mktree("tree", {"reps": "6 * float32"})
-        f["tree"].extend({"reps": reps})
+        f["tree"] = {"reps": final_reps}
 
-
+   
     return
 
     
@@ -203,3 +198,22 @@ if __name__ == "__main__":
     #paramsTest = np.load("data/processed/testing/17_theta_0.npy")[:300000]
     #valCNF(base_PATH, EModel, CNFModel,device, thetaMean,thetaStd,dataTest,paramsTest)
     
+
+
+
+
+
+
+
+
+"""
+ if reps.ndim == 1:
+        reps = reps.reshape(1, -1)
+
+    assert reps.shape[1] == 6, reps.shape
+
+    with uproot.recreate(f"{data_path}cnfpreds.root") as f:
+        f.mktree("tree", {"reps": "6 * float32"})
+        f["tree"].extend({"reps": reps})
+
+"""

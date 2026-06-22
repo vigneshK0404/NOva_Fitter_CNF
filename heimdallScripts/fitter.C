@@ -20,7 +20,7 @@ const std::string optSpace = "th24vsdm41";
 const std::string opt = "";
 const std::string optSysts = "all";
 const std::string optSamples = "numusel_ncres30sel_nuonesel_fhc_rhc_neardet_fardet";
-const int randSeeds[10] = {1,32,45,67,99,101,108,130,164,211};
+const std::vector<int> randSeeds = {1,32,45,67,99,101,108,130,164,211};
 const int totalBins = 148;
 
 void printCalc(osc::IOscCalcAdjustable* calc)
@@ -32,6 +32,17 @@ void printCalc(osc::IOscCalcAdjustable* calc)
         << " dmsq41 : " << kFitDmSq41Sterile.GetValue(calc) << " , "
         << " dmsq32 : " << kFitDmSq32Sterile.GetValue(calc) << std::endl;
     
+}
+
+void setCalcVals(osc::IOscCalcAdjustable* calc, float calcVals[])
+{
+    kFitDelta24InPiUnitsSterile.SetValue(calc,calcVals[0]); 
+    kFitSinSqTheta24Sterile.SetValue(calc, std::pow(10,calcVals[1]));
+    kFitSinSqTheta34Sterile.SetValue(calc, std::pow(10,calcVals[2]));
+    kFitSinSqTheta23Sterile.SetValue(calc, calcVals[3]);
+    kFitDmSq41Sterile.SetValue(calc, std::pow(10,calcVals[4]));
+    kFitDmSq32Sterile.SetValue(calc,calcVals[5]);
+
 }
 
 void createExp()
@@ -91,6 +102,8 @@ void checkInference()
     nus5p1::PISCESHelper ph;
     auto samples = ph.GetSamplesFromOptString("numusel_ncres30sel_nuonesel_fhc_rhc_neardet_fardet",kPredNoSysts,true);
     auto mx = ph.GetMatrix(samples, optSysts).release();
+    auto fitVars = nus5p1::GetFitVars(optSpace, opt, true);
+
 
     auto calc_null = nus5p1::GetOscCalcForFitting(optSpace, opt);
     nus22::SetParams(calc_null,"3flav");
@@ -101,16 +114,6 @@ void checkInference()
     auto calc_best = nus5p1::GetOscCalcForFitting(optSpace, opt);
     nus22::SetParams(calc_best,"3flav");
 
-    nus5p1::SetData(samples,mx,1,opt);
-    auto expt = nus5p1::GetExperiment(samples, mx, opt);    
-    auto fitVars = nus5p1::GetFitVars(optSpace, opt, true);
-    auto multiExp = nus5p1::AddConstraints(samples,&expt,opt);
-
-
-    double null_chiSQ = multiExp.ChiSq(calc_null);
-    printCalc(calc_null);
-    std::cout << "null: " << null_chiSQ << "\n";
-
     TFile* f = TFile::Open("data/cnfpreds.root");
     TTree* t = (TTree*)f->Get("tree");
 
@@ -118,52 +121,60 @@ void checkInference()
     t->SetBranchAddress("reps",calcVals);
 
     int iters = t->GetEntries();
+    int numExps = iters/randSeeds.size();
+    int global_idx = 0; 
 
-    double leastChi = 1e9;
-
-    MinuitFitter mfitter(&multiExp, fitVars, {}, MinuitFitter::kFast);
-
-
-    for(int i = 0; i < iters; ++i)
+    for(const int& s : randSeeds)
     {
-        t->GetEntry(i); 
 
-        kFitDelta24InPiUnitsSterile.SetValue(calc_exp,calcVals[0]); 
-        kFitSinSqTheta24Sterile.SetValue(calc_exp, std::pow(10,calcVals[1]));
-        kFitSinSqTheta34Sterile.SetValue(calc_exp, std::pow(10,calcVals[2]));
-        kFitSinSqTheta23Sterile.SetValue(calc_exp, calcVals[3]);
-        kFitDmSq41Sterile.SetValue(calc_exp, std::pow(10,calcVals[4]));
-        kFitDmSq32Sterile.SetValue(calc_exp,calcVals[5]);
-                
-        double currChi = multiExp.ChiSq(calc_exp);
-        printCalc(calc_exp);
-        double chi2All = mfitter.Fit(calc_exp)->EvalMetricVal();
-        std::cout << i << " : " << currChi << " " <<chi2All << "\n";
+        nus5p1::SetData(samples,mx,s,opt);
+        auto expt = nus5p1::GetExperiment(samples, mx, opt);    
+        auto multiExp = nus5p1::AddConstraints(samples,&expt,opt);
+ 
+        double leastChi = 1e9;
 
-        if (chi2All < leastChi)
+        MinuitFitter mfitter(&multiExp, fitVars, {}, MinuitFitter::kFast); 
+        int global_idx_cp = global_idx;
+
+        for(int i = global_idx_cp; i < global_idx_cp+numExps; ++i )
         {
-            leastChi = chi2All;
-            kFitDelta24InPiUnitsSterile.SetValue(calc_best,calcVals[0]); 
-            kFitSinSqTheta24Sterile.SetValue(calc_best, std::pow(10,calcVals[1]));
-            kFitSinSqTheta34Sterile.SetValue(calc_best, std::pow(10,calcVals[2]));
-            kFitSinSqTheta23Sterile.SetValue(calc_best, calcVals[3]);
-            kFitDmSq41Sterile.SetValue(calc_best, std::pow(10,calcVals[4]));
-            kFitDmSq32Sterile.SetValue(calc_best,calcVals[5]);
+
+            //std::cout << "i:"<< i << " global_idx_cp:" << global_idx_cp << " max:" << global_idx_cp+numExps << "\n";
+            t->GetEntry(i);
+            setCalcVals(calc_exp,calcVals);
+
+            double currChi = multiExp.ChiSq(calc_exp);
+            printCalc(calc_exp);
+            double chi2All = mfitter.Fit(calc_exp, MinuitFitter::kQuiet)->EvalMetricVal();
+            printCalc(calc_exp);
+            std::cout << i << " : " << currChi << " " <<chi2All << "\n";
+
+            if (chi2All < leastChi)
+            {
+                leastChi = chi2All;
+                setCalcVals(calc_best,calcVals);
+            }
+
+
+            global_idx++;
         }
 
-    }   
+        std::cout << "\n=======================NULL HYPOTHESIS=============================\n";
+        printCalc(calc_null);
+        std::cout << multiExp.ChiSq(calc_null) << "\n===================================================\n";
 
-    std::cout << "leastChi : " << leastChi << "\n";
-    printCalc(calc_best);
-    
- 
+        std::cout << "\n=======================ALTERNATE HYPOTHESIS=============================\n";
+        printCalc(calc_best);
+        std::cout << "leastChi : " << leastChi << "\n===================================================\n";
+        
+    }    
 
 }
 
 void fitter()
 {
-    createExp();
-    //checkInference();
+    //createExp();
+    checkInference();
 
       
 }
