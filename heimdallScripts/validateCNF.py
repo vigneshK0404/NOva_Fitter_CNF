@@ -7,6 +7,7 @@ import numpy as np
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import uproot
+import awkward as ak
 import consts
 
 def GenPreds(base_PATH : str, EModel : Encoder, CNFModel : CNF , device 
@@ -56,6 +57,8 @@ def generate_seeds(data_path : str ,base_PATH : str, NumSamples : int,
     data = torch.tensor(applyStd(data), device=device).float()
 
     rep_list = []
+    total_len = 0
+    len_list = []
 
     with torch.no_grad():
         x_en = EModel(data)
@@ -63,16 +66,19 @@ def generate_seeds(data_path : str ,base_PATH : str, NumSamples : int,
         sample_cut = samples.reshape(-1,samples.shape[-1]).cpu().numpy()
         
         data_bunches = np.array_split(sample_cut,len(data))
-        theta_bunches = torch.split(x_en,1)
- 
+        theta_bunches = torch.split(x_en,1) 
 
         for true_theta, bunch in tqdm(zip(theta_bunches, data_bunches)):
             assert len(bunch) == NumSamples, len(bunch)
             assert len(true_theta) == 1, len(true_theta)
 
             representatives = []
-            clusters = ModeMeanShift(bunch, 0.75, 1000)
-            print(f"Num Clusters : {len(clusters)}")
+            clusters = ModeMeanShift(bunch, 0.6, 1000)
+            cluster_len = len(clusters)
+            len_list.append(cluster_len)
+            total_len += cluster_len
+
+            print(f"Num Clusters : {cluster_len}")
 
             for cluster in clusters:
                 kSamples = cluster.shape[0]
@@ -85,17 +91,29 @@ def generate_seeds(data_path : str ,base_PATH : str, NumSamples : int,
             reps = torch.stack(representatives)
             x_en_reps = true_theta.unsqueeze(1).expand(1,len(reps),-1).reshape(len(reps),-1)
             logRankings = CNFModel(reps,x_en_reps).argsort(descending=True)
-            rep_list.append(np.asarray(reps[logRankings][:consts.topExps].cpu())) 
+            rep_list.append(np.asarray(reps[logRankings].cpu())) 
 
-    final_reps = np.stack(rep_list)
+    final_reps = np.concatenate(rep_list)
     final_reps *= (thetaStd + consts.EPSILON)
     final_reps += thetaMean
-    final_reps = final_reps.astype(np.float32).reshape(consts.topExps*len(data),-1)
-    print(final_reps)
+    final_reps = final_reps.astype(np.float32).reshape(total_len,-1)
+    print(final_reps.shape)
+
+    len_arr = np.array(len_list)
+    ncols = len(data)
+
+    if len_arr.ndim == 1:
+        len_arr = len_arr.reshape(1, -1)
+
+    assert len_arr.shape[1] == ncols, len_arr.shape
+    
+    print(len_arr)
 
     with uproot.recreate(f"{data_path}cnfpreds.root") as f:
         f["tree"] = {"reps": final_reps}
 
+        f.mktree("lens", {"lens": np.dtype((np.int16, (ncols,)))})
+        f["lens"].extend({"lens": len_arr})
    
     return
 

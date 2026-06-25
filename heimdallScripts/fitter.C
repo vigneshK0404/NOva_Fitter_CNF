@@ -13,15 +13,24 @@
 #include <vector>
 #include "TTree.h"
 #include "TFile.h"
+#include <random>
+#include <algorithm>
+
 
 using namespace ana;
+
+//create and save randomseed vector as root file
+//when making expeirments you can make them normally
+//on heimdall side use awkward arrays to have the first row indicating how many rows for a particular sample
+//over here save the first row and use them as indicies and pull out the saved randSeeds and use that too. 
+//nohup the whole thing overnight and see what happens. 
 
 const std::string optSpace = "th24vsdm41";
 const std::string opt = "";
 const std::string optSysts = "all";
 const std::string optSamples = "numusel_ncres30sel_nuonesel_fhc_rhc_neardet_fardet";
-const std::vector<int> randSeeds = {1,32,45,67,99,101,108,130,164,211};
 const int totalBins = 148;
+const size_t num_randSeeds = 20;
 
 void printCalc(osc::IOscCalcAdjustable* calc)
 {
@@ -47,6 +56,28 @@ void setCalcVals(osc::IOscCalcAdjustable* calc, float calcVals[])
 
 void createExp()
 {
+    //creating seeds
+    std::random_device rnd_device;
+    std::mt19937 mersenne_engine {rnd_device()};
+    std::uniform_int_distribution<int> dist {1, 1000};
+    
+    auto gen = [&](){
+                   return dist(mersenne_engine);
+               };
+
+    std::vector<int> randSeeds(num_randSeeds);
+    std::generate(randSeeds.begin(), randSeeds.end(), gen);
+
+    std::string seed_outfile = "randSeeds.root";
+    auto seed_file = ROOTFile(seed_outfile,"recreate");
+    seed_file->cd();
+    
+    TTree* seed_t = new TTree("seeds","seeds");
+    seed_t->Branch("seed",&randSeeds);
+    seed_t->Fill();
+    seed_file->Write();
+    seed_file->Close();
+
     //Samples and CovMatrix
     nus5p1::PISCESHelper ph;
     auto samples = ph.GetSamplesFromOptString(optSamples,kPredNoSysts,true);
@@ -59,7 +90,6 @@ void createExp()
     //create root file
     std::string outfile = "sampleData.root";
     auto file = ROOTFile(outfile,"recreate");
-    TDirectory* fDir = file->mkdir("CNFData");
     file->cd();
 
     std::vector<double> expVec;
@@ -114,20 +144,35 @@ void checkInference()
     auto calc_best = nus5p1::GetOscCalcForFitting(optSpace, opt);
     nus22::SetParams(calc_best,"3flav");
 
+
+    TFile* seed_f = TFile::Open("randSeeds.root");
+    TTree* seed_t = (TTree*)seed_f->Get("seeds");
+    std::vector<int>* randSeedsPtr = nullptr;
+    seed_t->SetBranchAddress("seed",&randSeedsPtr);
+    seed_t->GetEntry(0);
+    std::vector<int> randSeeds = (*randSeedsPtr);
+    seed_f->Close();
+
+
     TFile* f = TFile::Open("data/cnfpreds.root");
     TTree* t = (TTree*)f->Get("tree");
+    TTree* lens = (TTree*)f->Get("lens");
+
+    Short_t len_list[num_randSeeds];
+    lens->SetBranchAddress("lens",len_list);
+    lens->GetEntry(0);
 
     float calcVals[6];
     t->SetBranchAddress("reps",calcVals);
 
     int iters = t->GetEntries();
-    int numExps = iters/randSeeds.size();
-    int global_idx = 0; 
+    int global_idx = 0;
 
-    for(const int& s : randSeeds)
+ 
+    for(int j = 0; j < randSeeds.size(); ++j)
     {
 
-        nus5p1::SetData(samples,mx,s,opt);
+        nus5p1::SetData(samples,mx,randSeeds[j],opt);
         auto expt = nus5p1::GetExperiment(samples, mx, opt);    
         auto multiExp = nus5p1::AddConstraints(samples,&expt,opt);
  
@@ -136,10 +181,10 @@ void checkInference()
         MinuitFitter mfitter(&multiExp, fitVars, {}, MinuitFitter::kFast); 
         int global_idx_cp = global_idx;
 
-        for(int i = global_idx_cp; i < global_idx_cp+numExps; ++i )
+        for(int i = global_idx_cp; i < global_idx_cp + len_list[j]; ++i )
         {
 
-            //std::cout << "i:"<< i << " global_idx_cp:" << global_idx_cp << " max:" << global_idx_cp+numExps << "\n";
+            //std::cout << "i:"<< i << " global_idx_cp:" << global_idx_cp << " max:" << global_idx_cp + len_list[j] << " diff: " << len_list[j] <<"\n";
             t->GetEntry(i);
             setCalcVals(calc_exp,calcVals);
 
@@ -159,13 +204,36 @@ void checkInference()
             global_idx++;
         }
 
+        auto calc_null_tmp = calc_null->Copy();
+        double chi_null = mfitter.Fit(calc_null_tmp, MinuitFitter::kQuiet)->EvalMetricVal();
+
         std::cout << "\n=======================NULL HYPOTHESIS=============================\n";
-        printCalc(calc_null);
-        std::cout << multiExp.ChiSq(calc_null) << "\n===================================================\n";
+        printCalc(calc_null_tmp);
+        std::cout << "nullChi :" << chi_null << "\n===================================================\n";
 
         std::cout << "\n=======================ALTERNATE HYPOTHESIS=============================\n";
         printCalc(calc_best);
         std::cout << "leastChi : " << leastChi << "\n===================================================\n";
+
+        int better = 0;
+        int same = 0;
+        int worse = 0;
+
+        if (leastChi < chi_null)
+        {
+            better++;
+        }
+        else if (leastChi - chi_null < 1e-3)
+        {
+            same++;
+        }
+        else
+        {
+            worse++;
+        }
+
+        std::cout << "Better: " << better << ", Same: " << same << ", Worse: " << worse << std::endl;
+
         
     }    
 
