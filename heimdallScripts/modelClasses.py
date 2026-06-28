@@ -166,7 +166,7 @@ class CNF_trainer():
             print(f"E : {eGrad} CNF : {cnfGrad} total : {(eGrad*eGrad+cnfGrad*cnfGrad)**0.5}")
         """
         
-        torch.nn.utils.clip_grad_norm_(self.CNFModel.parameters(),max_norm = 28.0)
+        torch.nn.utils.clip_grad_norm_(self.CNFModel.parameters(),max_norm = 38.0)
 
         self.optimizer.step()
 

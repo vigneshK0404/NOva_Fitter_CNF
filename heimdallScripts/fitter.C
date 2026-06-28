@@ -54,9 +54,9 @@ void setCalcVals(osc::IOscCalcAdjustable* calc, float calcVals[])
 
 }
 
-void createExp()
+void createRand(std::vector<int>& randSeeds)
 {
-    //creating seeds
+
     std::random_device rnd_device;
     std::mt19937 mersenne_engine {rnd_device()};
     std::uniform_int_distribution<int> dist {1, 1000};
@@ -65,8 +65,17 @@ void createExp()
                    return dist(mersenne_engine);
                };
 
+    std::generate(randSeeds.begin(), randSeeds.end(), gen);    
+}
+
+void createExp()
+{
+    //creating seeds
     std::vector<int> randSeeds(num_randSeeds);
-    std::generate(randSeeds.begin(), randSeeds.end(), gen);
+    createRand(randSeeds);
+
+    //std::vector<int> randSeeds = {1};   
+
 
     std::string seed_outfile = "randSeeds.root";
     auto seed_file = ROOTFile(seed_outfile,"recreate");
@@ -167,8 +176,16 @@ void checkInference()
 
     int iters = t->GetEntries();
     int global_idx = 0;
-
  
+
+    for(int k = 0; k < num_randSeeds; ++k)
+    {
+        std::cout << len_list[k] << ", ";
+    }
+    std::cout << "\n";
+
+    
+
     for(int j = 0; j < randSeeds.size(); ++j)
     {
 

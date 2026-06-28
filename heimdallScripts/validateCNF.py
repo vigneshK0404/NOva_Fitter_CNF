@@ -46,7 +46,7 @@ def GenPreds(base_PATH : str, EModel : Encoder, CNFModel : CNF , device
 
 
 
-def generate_seeds(data_path : str ,base_PATH : str, NumSamples : int, 
+def generate_seeds(data_path : str ,NumSamples : int, 
                   EModel : Encoder, CNFModel : CNF, device, 
                   thetaMean, thetaStd):
 
@@ -73,7 +73,7 @@ def generate_seeds(data_path : str ,base_PATH : str, NumSamples : int,
             assert len(true_theta) == 1, len(true_theta)
 
             representatives = []
-            clusters = ModeMeanShift(bunch, 0.6, 1000)
+            clusters = ModeMeanShift(bunch, 0.65, 1000)
             cluster_len = len(clusters)
             len_list.append(cluster_len)
             total_len += cluster_len
@@ -183,7 +183,7 @@ def valCNF(base_PATH : str, EModel : Encoder, CNFModel : CNF, device, thetaMean,
 
 if __name__ == "__main__":
 
-    base_PATH = "Models/NOvACNF_ThickerModel/"
+    base_PATH = "Models/NOvACNF_AllData/"
     thetaMean = np.load(consts.theta_mean_path)
     thetaStd = np.load(consts.theta_std_path) 
 
@@ -205,11 +205,11 @@ if __name__ == "__main__":
     CNFModel.eval()
     CNFModel = CNFModel.to(device)
 
-    EModel.load_state_dict(ckpt["AE_Model"])
+    EModel.load_state_dict(ckpt["E_Model"])
     EModel.eval()
     EModel = EModel.to(device)
         
-    generate_seeds(consts.base_path, base_PATH, 50000, EModel , CNFModel, device, thetaMean, thetaStd)
+    generate_seeds(consts.base_path, 50000, EModel , CNFModel, device, thetaMean, thetaStd)
 
 
     #dataTest = torch.from_numpy(np.load("data/processed/testing/17_data_0.npy")[:300000])

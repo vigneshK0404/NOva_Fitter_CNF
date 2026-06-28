@@ -55,7 +55,7 @@ def calculate_std(base_path : str):
     return
 
 
-def applyStd(base_path : str, apply_site : str): #apply_site is either training or testing
+def applyStdMain(base_path : str, apply_site : str): #apply_site is either training or testing
 
     files = sorted(glob(f"{base_path}{apply_site}/*.npz"))
 
@@ -99,7 +99,7 @@ def applyStd(base_path : str, apply_site : str): #apply_site is either training 
             np.save(out_file_t, split_theta[i])
             np.save(out_file_d, split_data[i]) 
 
-        os.remove(file_name)
+        #os.remove(file_name) #TODO: Remove if space limited, moving data to lazy
 
     return
 
@@ -136,16 +136,17 @@ def unpacknpz(base_path : str, handle : str):
 
 
 def getSterileData(base_path : str):
+    print(base_path)
  
     #calculate_std(base_path)
 
     print("Calculated Standardizations")
 
-    #applyStd(base_path, "training")
+    applyStdMain(base_path, "training")
 
     print("Standardized and Randomized Training Data")    
 
-    applyStd(base_path, "testing")
+    applyStdMain(base_path, "testing")
 
     print("Standardized Testing Data. Complete")
        
