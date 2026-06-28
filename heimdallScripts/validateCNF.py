@@ -73,7 +73,7 @@ def generate_seeds(data_path : str ,NumSamples : int,
             assert len(true_theta) == 1, len(true_theta)
 
             representatives = []
-            clusters = ModeMeanShift(bunch, 0.65, 1000)
+            clusters = ModeMeanShift(bunch, 0.6, 1000)
             cluster_len = len(clusters)
             len_list.append(cluster_len)
             total_len += cluster_len
