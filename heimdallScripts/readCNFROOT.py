@@ -74,6 +74,8 @@ def applyStdMain(base_path : str, apply_site : str): #apply_site is either train
         theta = x["params"]
         theta -= theta_mean
         theta /= (theta_std + consts.EPSILON)
+
+        #print(np.percentile(np.abs(theta),99.9,axis=0))
     
         data_AT = 2 * np.sqrt(x["data"] + 3/8)
 
@@ -100,7 +102,7 @@ def applyStdMain(base_path : str, apply_site : str): #apply_site is either train
             np.save(out_file_d, split_data[i]) 
 
         #os.remove(file_name) #TODO: Remove if space limited, moving data to lazy
-
+        
     return
 
 

@@ -62,8 +62,9 @@ def generate_seeds(data_path : str ,NumSamples : int,
 
     with torch.no_grad():
         x_en = EModel(data)
-        samples = CNFModel.flow.sample(NumSamples,context=x_en)
-        sample_cut = samples.reshape(-1,samples.shape[-1]).cpu().numpy()
+        samples = CNFModel.flow.sample(NumSamples,context=x_en).cpu()
+        sample_cut = samples.reshape(-1,samples.shape[-1]).numpy()
+        
         
         data_bunches = np.array_split(sample_cut,len(data))
         theta_bunches = torch.split(x_en,1) 
@@ -183,11 +184,12 @@ def valCNF(base_PATH : str, EModel : Encoder, CNFModel : CNF, device, thetaMean,
 
 if __name__ == "__main__":
 
-    base_PATH = "Models/NOvACNF_AllData/"
+    base_PATH = "Models/NOvACNF_ThickerModel_v2/"
     thetaMean = np.load(consts.theta_mean_path)
     thetaStd = np.load(consts.theta_std_path) 
 
     device = torch.device(f"cuda:{consts.dnumber}" if torch.cuda.is_available() else "cpu")
+    #device = torch.device("cpu")
     print(device) 
 
     EModel = Encoder(input_dim = consts.input_dim,

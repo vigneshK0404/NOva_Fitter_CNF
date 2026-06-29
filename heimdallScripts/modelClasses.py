@@ -24,11 +24,12 @@ from torch.distributed import init_process_group, destroy_process_group
 import os
 
 import numpy as np
+import random
 
 def printNormGrad(parameters : torch.tensor):
     total = 0
     for p in parameters:
-        if p is not None:
+        if p.grad is not None:
             total += p.grad.detach().norm(2).item()
 
     return total**0.5
@@ -78,16 +79,19 @@ class CNF(torch.nn.Module):
         self.transforms = []
 
         for i in range(n_layers):
-            self.transforms.append(ReversePermutation(features=n_features))
             self.transforms.append(MaskedAffineAutoregressiveTransform(features=n_features, 
                                                                   hidden_features=hidden_features, 
                                                                   context_features=context_features)) #conditioned on compressed poissonData
+            self.transforms.append(ReversePermutation(features=n_features))
+
+            """
             self.transforms.append(MaskedPiecewiseRationalQuadraticAutoregressiveTransform(features = n_features,
                                                                                       hidden_features = hidden_features,
                                                                                       context_features = context_features,
                                                                                       num_bins = num_bins,   #10
                                                                                       tails = tails, #linear
                                                                                       tail_bound = tail_bound)) #3.5
+            """
 
                    
         transform = CompositeTransform(self.transforms)
@@ -143,7 +147,7 @@ class CNF_trainer():
         self.plotDir = "plots/"
 
         #CNF HYPER-PARAMS TO CHANGE
-
+        self.max_norm = None
         
         self.optimizer = torch.optim.Adam([
             {"params": self.EModel.parameters(), "lr": 1e-3}, 
@@ -152,21 +156,49 @@ class CNF_trainer():
 
         self.batch_size = batch_size
 
+    def _burn_in(self,epoch):
+
+        random_samples = random.sample(range(len(self.data_paths)),4)
+        total = []
+        #print("Burn in Phase, calculating max_norm for gradient clipping for files : ")
+
+        for file_idx in random_samples:
+            file_name_t = self.theta_paths[file_idx]
+            file_name_d = self.data_paths[file_idx]
+            #print(f"{file_name_d}")
+            dataset = trainingDataset(file_name_t, file_name_d)
+            train_data = prepare_dataloader(dataset, self.batch_size)
+            train_data.sampler.set_epoch(epoch*len(random_samples)+file_idx)
+            
+            for dS in train_data:
+                x_input,x_cond = dS
+                x_input = x_input.to(self.gpu_id, non_blocking = True)
+                x_cond = x_cond.to(self.gpu_id, non_blocking = True)
+
+                self.optimizer.zero_grad(set_to_none=True)
+                z_cond = self.EModel(x_cond)
+                nll = - self.CNFModel(x_input, context=z_cond)
+                cnf_loss = nll.mean()
+                cnf_loss.backward() 
+            
+                eGrad = printNormGrad(self.EModel.parameters())
+                cnfGrad = printNormGrad(self.CNFModel.parameters())
+                total.append((eGrad*eGrad+cnfGrad*cnfGrad)**0.5)
+        
+        max_norm = torch.tensor([np.percentile(np.asarray(total),99.9)], device = self.gpu_id)
+        self.optimizer.zero_grad(set_to_none=True)
+
+        return max_norm
+       
+
     def _run_batch(self, x_input, x_cond,record_loss : bool):
-        self.optimizer.zero_grad()
+        self.optimizer.zero_grad(set_to_none=True)
         z_cond = self.EModel(x_cond)
         nll = - self.CNFModel(x_input, context=z_cond)
         cnf_loss = nll.mean()
         cnf_loss.backward()
 
-        """
-        if self.gpu_id == 0 :
-            eGrad = printNormGrad(self.EModel.parameters())
-            cnfGrad = printNormGrad(self.CNFModel.parameters())
-            print(f"E : {eGrad} CNF : {cnfGrad} total : {(eGrad*eGrad+cnfGrad*cnfGrad)**0.5}")
-        """
-        
-        torch.nn.utils.clip_grad_norm_(self.CNFModel.parameters(),max_norm = 38.0)
+        torch.nn.utils.clip_grad_norm_(self.CNFModel.parameters(),max_norm = self.max_norm)
 
         self.optimizer.step()
 
@@ -198,6 +230,18 @@ class CNF_trainer():
 
     def _train(self,max_epoch : int, PATH : str): 
         for epoch in tqdm(range(max_epoch)):
+            if epoch == 0:
+                max_norm = self._burn_in(epoch)   # every rank does this
+
+                torch.distributed.all_reduce(
+                    max_norm,
+                    op=torch.distributed.ReduceOp.MAX
+                )
+
+                self.max_norm = max_norm.item()
+                if self.gpu_id == 0:
+                    print(f"max_norm : {self.max_norm}")
+
             self._run_epoch(epoch)
             if (epoch == max_epoch -1) and self.gpu_id == 0:
                 self._save_checkpoint(PATH)

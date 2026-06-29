@@ -126,7 +126,7 @@ if __name__ == "__main__":
         #valCNF(PATH, EModel, CNFModel, device,
         #        thetaMean,thetaStd,dataTest,paramsTest)
         
-        generate_seeds(consts.base_path, 100000, EModel , CNFModel, device, thetaMean, thetaStd)
+        generate_seeds(consts.base_path, 50000, EModel , CNFModel, device, thetaMean, thetaStd)
 
 
 
