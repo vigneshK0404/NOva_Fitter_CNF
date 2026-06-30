@@ -60,7 +60,9 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hy
     Emodel = Emodel.train()
     theta_paths = sorted(glob(consts.theta_path))
     data_paths = sorted(glob(consts.data_path))
-    trainer = CNF_trainer(Emodel,CNFmodel, theta_paths, data_paths, rank, batch_size)  
+    val_theta_paths = sorted(glob(consts.val_theta_path))
+    val_data_paths = sorted(glob(consts.val_data_path))
+    trainer = CNF_trainer(Emodel,CNFmodel, theta_paths, data_paths, val_theta_paths, val_data_paths, rank, batch_size)  
 
     if rank == 0:
         hyper_params["Optimizer"] = str(trainer.optimizer)

@@ -25,6 +25,7 @@ import os
 
 import numpy as np
 import random
+import consts
 
 def printNormGrad(parameters : torch.tensor):
     total = 0
@@ -79,19 +80,18 @@ class CNF(torch.nn.Module):
         self.transforms = []
 
         for i in range(n_layers):
+            self.transforms.append(ReversePermutation(features=n_features))
             self.transforms.append(MaskedAffineAutoregressiveTransform(features=n_features, 
                                                                   hidden_features=hidden_features, 
                                                                   context_features=context_features)) #conditioned on compressed poissonData
-            self.transforms.append(ReversePermutation(features=n_features))
-
-            """
+            
             self.transforms.append(MaskedPiecewiseRationalQuadraticAutoregressiveTransform(features = n_features,
                                                                                       hidden_features = hidden_features,
                                                                                       context_features = context_features,
                                                                                       num_bins = num_bins,   #10
                                                                                       tails = tails, #linear
                                                                                       tail_bound = tail_bound)) #3.5
-            """
+            #self.transforms.append(ReversePermutation(features=n_features))
 
                    
         transform = CompositeTransform(self.transforms)
@@ -131,6 +131,8 @@ class CNF_trainer():
                  CNFModel : CNF,
                  theta_paths: str,
                  data_paths : str,
+                 val_theta_paths : str,
+                 val_data_paths : str,
                  gpu_id: int,
                  batch_size : int
                  ):
@@ -142,23 +144,26 @@ class CNF_trainer():
         self.EModel = DDP(self.EModel, device_ids=[gpu_id])
         self.CNFModel = DDP(self.CNFModel, device_ids=[gpu_id])
         self.cnf_losses = []
+        self.val_cnf_losses = []
         self.data_paths = data_paths
         self.theta_paths = theta_paths
+        self.val_data_paths = val_data_paths
+        self.val_theta_paths = val_theta_paths
         self.plotDir = "plots/"
 
         #CNF HYPER-PARAMS TO CHANGE
         self.max_norm = None
         
         self.optimizer = torch.optim.Adam([
-            {"params": self.EModel.parameters(), "lr": 1e-3}, 
-            {"params": self.CNFModel.parameters(), "lr": 1e-3}
+            {"params": self.EModel.parameters(), "lr": consts.encoder_lr}, 
+            {"params": self.CNFModel.parameters(), "lr": consts.cnf_lr}
             ])
 
         self.batch_size = batch_size
 
     def _burn_in(self,epoch):
 
-        random_samples = random.sample(range(len(self.data_paths)),4)
+        random_samples = random.sample(range(min(4,len(self.data_paths))),4)
         total = []
         #print("Burn in Phase, calculating max_norm for gradient clipping for files : ")
 
@@ -189,6 +194,31 @@ class CNF_trainer():
         self.optimizer.zero_grad(set_to_none=True)
 
         return max_norm
+
+    def _loss_validation(self,epoch):
+        self.CNFModel.eval()
+        self.EModel.eval()
+        with torch.no_grad():
+            for file_idx in range(len(self.val_data_paths)):
+                file_name_t = self.val_theta_paths[file_idx]
+                file_name_d = self.val_data_paths[file_idx]
+                #print(f"Validation - epoch : {epoch}; {file_name_d}, {file_name_t}")
+                dataset = trainingDataset(file_name_t, file_name_d)
+                train_data = prepare_dataloader(dataset, self.batch_size)
+                train_data.sampler.set_epoch(epoch*len(self.val_data_paths)+file_idx)
+                for dS in train_data:
+                    x_input,x_cond = dS
+                    x_input = x_input.to(self.gpu_id, non_blocking = True)
+                    x_cond = x_cond.to(self.gpu_id, non_blocking = True)
+                    z_cond = self.EModel(x_cond)
+                    nll = - self.CNFModel(x_input, context=z_cond)
+                    cnf_loss = nll.mean()
+                    self.val_cnf_losses.append(cnf_loss.detach()) #not .item() so no forced sync we will just sync at the end
+
+        self.CNFModel.train()
+        self.EModel.train()
+
+
        
 
     def _run_batch(self, x_input, x_cond,record_loss : bool):
@@ -243,12 +273,33 @@ class CNF_trainer():
                     print(f"max_norm : {self.max_norm}")
 
             self._run_epoch(epoch)
-            if (epoch == max_epoch -1) and self.gpu_id == 0:
-                self._save_checkpoint(PATH)
-                plt.plot(self.cnf_losses)
-                plt.savefig(self.plotDir+"CNFLoss.png")
-                plt.clf()
-                print(f"Saved CNF Loss Plot at {self.plotDir} CNFLOSS.png")
+            
+            if epoch % 2 == 0:
+                self._loss_validation(epoch)
+
+
+            if (epoch == max_epoch -1):
+                self.val_cnf_losses = torch.stack(self.val_cnf_losses)
+
+                torch.distributed.all_reduce(
+                    self.val_cnf_losses,
+                    op=torch.distributed.ReduceOp.SUM
+                )
+                
+                self.val_cnf_losses = self.val_cnf_losses / torch.distributed.get_world_size()
+
+                if self.gpu_id == 0:
+                    self._save_checkpoint(PATH)
+
+                    plt.plot(self.cnf_losses)
+                    plt.savefig(self.plotDir+"CNFLoss.png")
+                    plt.clf()
+                    print(f"Saved CNF Loss Plot at {self.plotDir} CNFLOSS.png")
+
+                    plt.plot(self.val_cnf_losses.cpu())
+                    plt.savefig(self.plotDir+"val_CNFLoss.png")
+                    plt.clf()
+                    print(f"Saved CNF Loss Plot at {self.plotDir} val_CNFLOSS.png")
 
         
 
