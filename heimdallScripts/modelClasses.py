@@ -21,8 +21,9 @@ import torch.multiprocessing as mp
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
-import os
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
+import os
 import numpy as np
 import random
 import consts
@@ -149,6 +150,7 @@ class CNF_trainer():
         self.theta_paths = theta_paths
         self.val_data_paths = val_data_paths
         self.val_theta_paths = val_theta_paths
+        self.epoch_list = []
 
         #CNF HYPER-PARAMS TO CHANGE
         self.max_norm = None
@@ -157,6 +159,8 @@ class CNF_trainer():
             {"params": self.EModel.parameters(), "lr": consts.encoder_lr}, 
             {"params": self.CNFModel.parameters(), "lr": consts.cnf_lr}
             ])
+
+        self.scheduler = ReduceLROnPlateau(self.optimizer, mode="min", factor=0.3, patience=0, min_lr = [1e-5,1e-5])
 
         self.batch_size = batch_size
 
@@ -195,6 +199,12 @@ class CNF_trainer():
         return max_norm
 
     def _loss_validation(self,epoch):
+
+        if self.gpu_id == 0:
+            self.epoch_list.append(epoch)
+
+        batch_count = 0
+        avg_cnf_loss = 0
         self.CNFModel.eval()
         self.EModel.eval()
         with torch.no_grad():
@@ -205,6 +215,7 @@ class CNF_trainer():
                 dataset = trainingDataset(file_name_t, file_name_d)
                 train_data = prepare_dataloader(dataset, self.batch_size)
                 train_data.sampler.set_epoch(epoch*len(self.val_data_paths)+file_idx)
+                batch_count += len(train_data)
                 for dS in train_data:
                     x_input,x_cond = dS
                     x_input = x_input.to(self.gpu_id, non_blocking = True)
@@ -212,10 +223,14 @@ class CNF_trainer():
                     z_cond = self.EModel(x_cond)
                     nll = - self.CNFModel(x_input, context=z_cond)
                     cnf_loss = nll.mean()
-                    self.val_cnf_losses.append(cnf_loss.detach()) #not .item() so no forced sync we will just sync at the end
-
+                    avg_cnf_loss += cnf_loss.detach()#not .item() so no forced sync we will just sync at the end
+        
+        avg_cnf_loss = avg_loss / batch_count
+        self.val_cnf_losses.append(avg_cnf_loss) 
         self.CNFModel.train()
         self.EModel.train()
+
+        return avg_cnf_loss
 
 
        
@@ -257,7 +272,7 @@ class CNF_trainer():
                     self.cnf_losses.append(loss_rec)
                     print(loss_rec)
 
-    def _train(self,max_epoch : int, PATH : str): 
+    def _train(self,max_epoch : int, PATH : str):
         for epoch in tqdm(range(max_epoch)):
             if epoch == 0:
                 max_norm = self._burn_in(epoch)   # every rank does this
@@ -274,13 +289,12 @@ class CNF_trainer():
             self._run_epoch(epoch)
             
             if epoch % 2 == 0:
-                self._loss_validation(epoch)
+                avg_cnf_loss = self._loss_validation(epoch)
+                avg_cnf_loss_num = avg_cnf_loss.item()
 
-            #Late LR reduction
-            if (epoch == max_epoch//2):
-                for group in self.optimizer.param_groups:
-                    group["lr"] = 3e-4
-
+                #Late LR reduction
+                if (epoch >= max_epoch//2):
+                    self.scheduler.step(avg_cnf_loss_num)
 
             if (epoch == max_epoch -1):
                 self.val_cnf_losses = torch.stack(self.val_cnf_losses)
@@ -294,13 +308,15 @@ class CNF_trainer():
 
                 if self.gpu_id == 0:
                     self._save_checkpoint(PATH)
-
-                    plt.plot(self.cnf_losses)
+    
+                    plt.plot(self.cnf_losses, marker="x",markersize=10,markeredgecolor="black")
+                    plt.grid()                    
                     plt.savefig(PATH+"CNFLoss.png")
                     plt.clf()
                     print(f"Saved CNF Loss Plot at {PATH} CNFLOSS.png")
 
-                    plt.plot(self.val_cnf_losses.cpu())
+                    plt.plot(self.epoch_list,self.val_cnf_losses.cpu(), marker="x",markersize=10,markeredgecolor="black")
+                    plt.grid()
                     plt.savefig(PATH+"val_CNFLoss.png")
                     plt.clf()
                     print(f"Saved CNF Loss Plot at {PATH} val_CNFLOSS.png")
