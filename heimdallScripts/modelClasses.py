@@ -149,7 +149,6 @@ class CNF_trainer():
         self.theta_paths = theta_paths
         self.val_data_paths = val_data_paths
         self.val_theta_paths = val_theta_paths
-        self.plotDir = "plots/"
 
         #CNF HYPER-PARAMS TO CHANGE
         self.max_norm = None
@@ -190,7 +189,7 @@ class CNF_trainer():
                 cnfGrad = printNormGrad(self.CNFModel.parameters())
                 total.append((eGrad*eGrad+cnfGrad*cnfGrad)**0.5)
         
-        max_norm = torch.tensor([np.percentile(np.asarray(total),99.9)], device = self.gpu_id)
+        max_norm = torch.tensor([np.percentile(np.asarray(total),99.99)], device = self.gpu_id)
         self.optimizer.zero_grad(set_to_none=True)
 
         return max_norm
@@ -277,6 +276,11 @@ class CNF_trainer():
             if epoch % 2 == 0:
                 self._loss_validation(epoch)
 
+            #Late LR reduction
+            if (epoch == max_epoch//2):
+                for group in self.optimizer.param_groups:
+                    group["lr"] = 3e-4
+
 
             if (epoch == max_epoch -1):
                 self.val_cnf_losses = torch.stack(self.val_cnf_losses)
@@ -292,14 +296,14 @@ class CNF_trainer():
                     self._save_checkpoint(PATH)
 
                     plt.plot(self.cnf_losses)
-                    plt.savefig(self.plotDir+"CNFLoss.png")
+                    plt.savefig(PATH+"CNFLoss.png")
                     plt.clf()
-                    print(f"Saved CNF Loss Plot at {self.plotDir} CNFLOSS.png")
+                    print(f"Saved CNF Loss Plot at {PATH} CNFLOSS.png")
 
                     plt.plot(self.val_cnf_losses.cpu())
-                    plt.savefig(self.plotDir+"val_CNFLoss.png")
+                    plt.savefig(PATH+"val_CNFLoss.png")
                     plt.clf()
-                    print(f"Saved CNF Loss Plot at {self.plotDir} val_CNFLOSS.png")
+                    print(f"Saved CNF Loss Plot at {PATH} val_CNFLOSS.png")
 
         
 
