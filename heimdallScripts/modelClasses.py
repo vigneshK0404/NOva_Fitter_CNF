@@ -225,7 +225,7 @@ class CNF_trainer():
                     cnf_loss = nll.mean()
                     avg_cnf_loss += cnf_loss.detach()#not .item() so no forced sync we will just sync at the end
         
-        avg_cnf_loss = avg_loss / batch_count
+        avg_cnf_loss = avg_cnf_loss / batch_count
         self.val_cnf_losses.append(avg_cnf_loss) 
         self.CNFModel.train()
         self.EModel.train()
@@ -290,10 +290,17 @@ class CNF_trainer():
             
             if epoch % 2 == 0:
                 avg_cnf_loss = self._loss_validation(epoch)
-                avg_cnf_loss_num = avg_cnf_loss.item()
 
                 #Late LR reduction
                 if (epoch >= max_epoch//2):
+
+                    torch.distributed.all_reduce(
+                    avg_cnf_loss,
+                    op=torch.distributed.ReduceOp.SUM
+                    )
+
+                    avg_cnf_loss = avg_cnf_loss / torch.distributed.get_world_size()
+                    avg_cnf_loss_num = avg_cnf_loss.item()
                     self.scheduler.step(avg_cnf_loss_num)
 
             if (epoch == max_epoch -1):
