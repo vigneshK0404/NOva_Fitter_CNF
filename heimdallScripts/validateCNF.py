@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import uproot
 import awkward as ak
+import math
 import consts
 
 def GenPreds(base_PATH : str, EModel : Encoder, CNFModel : CNF , device 
@@ -60,11 +61,19 @@ def generate_seeds(data_path : str ,NumSamples : int,
     total_len = 0
     len_list = []
 
+    true_best_val = np.array([0.370105,math.log10(0.0203667),math.log10(0.0384742),pow(math.sin(0.884828),2),1.21022,0.00253644],dtype=np.float32)
+    true_best_val -= thetaMean
+    true_best_val /= (thetaStd + consts.EPSILON)
+    true_best_value = torch.tensor(true_best_val,device=device).unsqueeze(0)
+
     with torch.no_grad():
         x_en = EModel(data)
         samples = CNFModel.flow.sample(NumSamples,context=x_en).cpu()
         sample_cut = samples.reshape(-1,samples.shape[-1]).numpy()
         
+        #print(x_en.shape)
+        #print(true_best_value.shape)
+        best_log = CNFModel(true_best_value,x_en)
         
         data_bunches = np.array_split(sample_cut,len(data))
         theta_bunches = torch.split(x_en,1) 
@@ -82,6 +91,7 @@ def generate_seeds(data_path : str ,NumSamples : int,
             print(f"Num Clusters : {cluster_len}")
 
             for cluster in clusters:
+                #print(cluster.shape)
                 kSamples = cluster.shape[0]
                 cluster = torch.tensor(cluster,device=device).float()
                 x_en_Exp = true_theta.unsqueeze(1).expand(1,kSamples,-1).reshape(kSamples,-1)
@@ -91,9 +101,13 @@ def generate_seeds(data_path : str ,NumSamples : int,
    
             reps = torch.stack(representatives)
             x_en_reps = true_theta.unsqueeze(1).expand(1,len(reps),-1).reshape(len(reps),-1)
-            logRankings = CNFModel(reps,x_en_reps).argsort(descending=True)
-            rep_list.append(np.asarray(reps[logRankings].cpu())) 
+            log_vals = CNFModel(reps,x_en_reps)
+            logRankings = log_vals.argsort(descending=True)
+            print(f"logRankings : {log_vals[logRankings]}")
+            print(f"bestLog : {best_log}")
+            rep_list.append(np.asarray(reps[logRankings].cpu()))
 
+            
     final_reps = np.concatenate(rep_list)
     final_reps *= (thetaStd + consts.EPSILON)
     final_reps += thetaMean
@@ -107,7 +121,6 @@ def generate_seeds(data_path : str ,NumSamples : int,
         len_arr = len_arr.reshape(1, -1)
 
     assert len_arr.shape[1] == ncols, len_arr.shape
-    
     print(len_arr)
 
     with uproot.recreate(f"{data_path}cnfpreds.root") as f:
@@ -184,7 +197,7 @@ def valCNF(base_PATH : str, EModel : Encoder, CNFModel : CNF, device, thetaMean,
 
 if __name__ == "__main__":
 
-    base_PATH = "Models/NOvACNF_ThickerModel_v2/"
+    base_PATH = "Models/NOvACNF_RedOnPlat_lr/"
     thetaMean = np.load(consts.theta_mean_path)
     thetaStd = np.load(consts.theta_std_path) 
 

@@ -160,7 +160,7 @@ class CNF_trainer():
             {"params": self.CNFModel.parameters(), "lr": consts.cnf_lr}
             ])
 
-        self.scheduler = ReduceLROnPlateau(self.optimizer, mode="min", factor=0.3, patience=0, min_lr = [1e-5,1e-5])
+        self.scheduler = ReduceLROnPlateau(self.optimizer, mode="min", factor=0.1, patience=0, threshold=1e-3, threshold_mode="abs", min_lr = [1e-5,1e-5])
 
         self.batch_size = batch_size
 
@@ -226,7 +226,17 @@ class CNF_trainer():
                     avg_cnf_loss += cnf_loss.detach()#not .item() so no forced sync we will just sync at the end
         
         avg_cnf_loss = avg_cnf_loss / batch_count
-        self.val_cnf_losses.append(avg_cnf_loss) 
+        
+        torch.distributed.all_reduce(
+                avg_cnf_loss,
+                op=torch.distributed.ReduceOp.SUM
+                )
+
+        avg_cnf_loss = avg_cnf_loss / torch.distributed.get_world_size()
+
+        if self.gpu_id == 0:
+            self.val_cnf_losses.append(avg_cnf_loss)
+
         self.CNFModel.train()
         self.EModel.train()
 
@@ -294,39 +304,25 @@ class CNF_trainer():
                 #Late LR reduction
                 if (epoch >= max_epoch//2):
 
-                    torch.distributed.all_reduce(
-                    avg_cnf_loss,
-                    op=torch.distributed.ReduceOp.SUM
-                    )
-
-                    avg_cnf_loss = avg_cnf_loss / torch.distributed.get_world_size()
                     avg_cnf_loss_num = avg_cnf_loss.item()
                     self.scheduler.step(avg_cnf_loss_num)
 
-            if (epoch == max_epoch -1):
+            if (epoch == max_epoch -1) and self.gpu_id == 0:
+            
                 self.val_cnf_losses = torch.stack(self.val_cnf_losses)
+                self._save_checkpoint(PATH)
 
-                torch.distributed.all_reduce(
-                    self.val_cnf_losses,
-                    op=torch.distributed.ReduceOp.SUM
-                )
-                
-                self.val_cnf_losses = self.val_cnf_losses / torch.distributed.get_world_size()
+                plt.plot(self.cnf_losses, marker="x",markersize=10,markeredgecolor="black")
+                plt.grid()                    
+                plt.savefig(PATH+"CNFLoss.png")
+                plt.clf()
+                print(f"Saved CNF Loss Plot at {PATH} CNFLOSS.png")
 
-                if self.gpu_id == 0:
-                    self._save_checkpoint(PATH)
-    
-                    plt.plot(self.cnf_losses, marker="x",markersize=10,markeredgecolor="black")
-                    plt.grid()                    
-                    plt.savefig(PATH+"CNFLoss.png")
-                    plt.clf()
-                    print(f"Saved CNF Loss Plot at {PATH} CNFLOSS.png")
-
-                    plt.plot(self.epoch_list,self.val_cnf_losses.cpu(), marker="x",markersize=10,markeredgecolor="black")
-                    plt.grid()
-                    plt.savefig(PATH+"val_CNFLoss.png")
-                    plt.clf()
-                    print(f"Saved CNF Loss Plot at {PATH} val_CNFLOSS.png")
+                plt.plot(self.epoch_list,self.val_cnf_losses.cpu(), marker="x",markersize=10,markeredgecolor="black")
+                plt.grid()
+                plt.savefig(PATH+"val_CNFLoss.png")
+                plt.clf()
+                print(f"Saved CNF Loss Plot at {PATH} val_CNFLOSS.png")
 
         
 
