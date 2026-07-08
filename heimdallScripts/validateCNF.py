@@ -51,7 +51,7 @@ def generate_seeds(data_path : str ,NumSamples : int,
                   EModel : Encoder, CNFModel : CNF, device, 
                   thetaMean, thetaStd):
 
-    file = uproot.open(data_path + "sampleData.root")
+    file = uproot.open(data_path + "diagnoseData.root")
     tree = file["dataTree"]
     branches = tree.arrays()
     data = np.array(branches["data"],dtype=np.int32)
@@ -123,7 +123,7 @@ def generate_seeds(data_path : str ,NumSamples : int,
     assert len_arr.shape[1] == ncols, len_arr.shape
     print(len_arr)
 
-    with uproot.recreate(f"{data_path}cnfpreds.root") as f:
+    with uproot.recreate(f"{data_path}cnfpreds_diagnose.root") as f:
         f["tree"] = {"reps": final_reps}
 
         f.mktree("lens", {"lens": np.dtype((np.int16, (ncols,)))})
