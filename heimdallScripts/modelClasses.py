@@ -82,6 +82,7 @@ class CNF(torch.nn.Module):
 
         for i in range(n_layers):
             self.transforms.append(ReversePermutation(features=n_features))
+            
             self.transforms.append(MaskedAffineAutoregressiveTransform(features=n_features, 
                                                                   hidden_features=hidden_features, 
                                                                   context_features=context_features)) #conditioned on compressed poissonData
@@ -92,7 +93,7 @@ class CNF(torch.nn.Module):
                                                                                       num_bins = num_bins,   #10
                                                                                       tails = tails, #linear
                                                                                       tail_bound = tail_bound)) #3.5
-            #self.transforms.append(ReversePermutation(features=n_features))
+            self.transforms.append(ReversePermutation(features=n_features))
 
                    
         transform = CompositeTransform(self.transforms)
@@ -160,7 +161,7 @@ class CNF_trainer():
             {"params": self.CNFModel.parameters(), "lr": consts.cnf_lr}
             ])
 
-        self.scheduler = ReduceLROnPlateau(self.optimizer, mode="min", factor=0.1, patience=0, threshold=1e-3, threshold_mode="abs", min_lr = [1e-5,1e-5])
+        self.scheduler = ReduceLROnPlateau(self.optimizer, mode="min", factor=0.3, patience=0, threshold=1e-3, threshold_mode="abs", min_lr = [1e-5,1e-5])
 
         self.batch_size = batch_size
 
