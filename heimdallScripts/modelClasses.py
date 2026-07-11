@@ -92,8 +92,7 @@ class CNF(torch.nn.Module):
                                                                                       context_features = context_features,
                                                                                       num_bins = num_bins,   #10
                                                                                       tails = tails, #linear
-                                                                                      tail_bound = tail_bound)) #3.5
-            self.transforms.append(ReversePermutation(features=n_features))
+                                                                                      tail_bound = tail_bound)) #3.5 
 
                    
         transform = CompositeTransform(self.transforms)

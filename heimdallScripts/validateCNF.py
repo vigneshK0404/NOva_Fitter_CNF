@@ -96,6 +96,8 @@ def generate_seeds(data_path : str ,NumSamples : int,
                 cluster = torch.tensor(cluster,device=device).float()
                 x_en_Exp = true_theta.unsqueeze(1).expand(1,kSamples,-1).reshape(kSamples,-1)
                 firstPass = CNFModel(cluster,x_en_Exp)
+                mask = firstPass.isfinite(firstPass)
+                firstPass = firstPass[mask]
                 infer = cluster[torch.argmax(firstPass)]
                 representatives.append(infer)   
    
