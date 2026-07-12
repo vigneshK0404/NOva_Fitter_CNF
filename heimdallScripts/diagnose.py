@@ -15,40 +15,54 @@ Pick representative points
 Figure out Sampling method
 """
 
-def estimate_params(freqs : list, num_random_files : int, num_random_rows : int):
-    theta_paths = sorted(glob(consts.theta_path))
-    random_files = random.sample(theta_paths, num_random_files) 
 
+def estimate_params(freqs : list, num_epochs : int, num_random_rows : int , num_combine=5):
+    theta_paths = sorted(glob(consts.theta_path))
+    random_files = random.sample(theta_paths, num_epochs * num_combine) 
+
+    chunks = [random_files[i : i + num_combine] for i in range(0, len(random_files), num_combine)]
 
     R_means = []
-    R_stds = []    
-    theta_list = []
-    query_list = []
-
-    for path in tqdm(random_files) :
-        theta_array = np.load(path)[::consts.repeatSize]
-        random_rows = np.array(random.sample(range(0,len(theta_array)),num_random_rows))
-        query_points = theta_array[random_rows]
-
-        theta_list.append(theta_array)
-        query_list.append(query_points)
-
+    R_stds = []
     
-    theta_array = np.vstack(theta_list)
-    query_array = np.vstack(query_list)
+    R_dict = {}
+    for freq in freqs:
+        R_dict[freq] = []
 
-    print(f"theta_array : {theta_array.shape}")
-    print(f"query_array : {query_array.shape}")
+    for chunk in tqdm(chunks):
 
-    tree = cKDTree(theta_array)
+        theta_list = []
+        query_list = []
 
-    for min_freq in tqdm(freqs):
-        dd , _ = tree.query(query_array, k=min_freq+1)
-        R_array = dd[:,-1]
-        R_stds.append(np.std(R_array, ddof=0))
-        R_means.append(np.mean(R_array))
+        for path in chunk :
+            theta_array = np.load(path)[::consts.repeatSize]
+            random_rows = np.array(random.sample(range(0,len(theta_array)),num_random_rows))
+            query_points = theta_array[random_rows]
 
-    
+            theta_list.append(theta_array)
+            query_list.append(query_points)
+
+        
+        theta_array = np.vstack(theta_list)
+        query_array = np.vstack(query_list)
+
+        print(f"theta_array : {theta_array.shape}")
+        print(f"query_array : {query_array.shape}")
+
+        tree = cKDTree(theta_array)
+
+        for min_freq in tqdm(freqs):
+            dd , _ = tree.query(query_array, k=min_freq+1)
+            R_dict[min_freq].append(dd[:,-1])
+
+
+
+    for min_freq in freqs:
+        R_dict[min_freq] = np.array(R_dict[min_freq]).flatten()
+        R_stds.append(np.std(R_dict[min_freq], ddof=0))
+        R_means.append(np.mean(R_dict[min_freq]))
+
+        
     R_stds = np.array(R_stds)
     R_means = np.array(R_means)
     R_score = R_stds / R_means
@@ -73,10 +87,11 @@ def estimate_params(freqs : list, num_random_files : int, num_random_rows : int)
 
 
 
-def find_holes_in_data(thetaMean : np.array, thetaStd : np.array):
+def find_holes_in_data(thetaMean : np.array, thetaStd : np.array): 
     
-    eps = 0.4488
-    min_freq = 72
+    eps, min_freq = estimate_params(freqs=list(range(10,150)), num_epochs = 10, num_random_rows = 200)
+    print(f"eps : {eps}")
+    print(f"min_freq : {min_freq}")
 
     theta_paths = sorted(glob(consts.theta_path))
     outliers = []
@@ -104,7 +119,6 @@ def find_holes_in_data(thetaMean : np.array, thetaStd : np.array):
 
 
     outliers = np.concatenate(outliers, axis=0)
-    print(f"outliers : {outliers.shape}")
 
     db_outliers = DBSCAN(eps=eps, min_samples=min_freq).fit(outliers)
     mask = db_outliers.labels_ == -1
@@ -120,12 +134,6 @@ def find_holes_in_data(thetaMean : np.array, thetaStd : np.array):
 
 
 if __name__ == "__main__":
-    #freqs = list(range(10,150))
-    #num_random_files = 50
-    #num_random_rows = 200
-    
-    #print(estimate_params(freqs,num_random_files,num_random_rows))
-
     thetaMean = np.load(consts.theta_mean_path)
     thetaStd = np.load(consts.theta_std_path) 
 
