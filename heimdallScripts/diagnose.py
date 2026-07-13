@@ -1,11 +1,13 @@
 import numpy as np
 from scipy.spatial import KDTree, cKDTree
+import math
 from glob import glob
 import consts
 import random
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from sklearn.cluster import DBSCAN
+#import ROOT
 
 """
 Figure out sampling method
@@ -50,7 +52,7 @@ def estimate_params(freqs : list, num_epochs : int, num_random_rows : int , num_
         tree = cKDTree(theta_array)
 
         for min_freq in freqs:
-            dd , _ = tree.query(query_array, k=min_freq+1)
+            dd , _ = tree.query(query_array, k=min_freq)
             R_dict[min_freq].append(dd[:,-1])
 
 
@@ -82,11 +84,34 @@ def estimate_params(freqs : list, num_epochs : int, num_random_rows : int , num_
     return R_means[smallest_idx] , freqs[smallest_idx]
 
 
-def generate_data(outliers : np.array):
-    pass
+def check_holes(outliers : np.array, root_name : str, file_name : str, thetaMean : np.array, thetaStd : np.array):
+
+    """
+    with ROOT.TFile.Open(root_name) as f:
+        h = f.Get(file_name)
+        calcVals = np.array([h.GetBinContent(5),math.log10(h.GetBinContent(3)),
+                    math.log10(h.GetBinContent(1)),pow(math.sin(h.GetBinContent(2)),2),
+                    h.GetBinContent(4),h.GetBinContent(6)])
+    """
+
+    true_best_val = np.array([0.370105,math.log10(0.0203667),math.log10(0.0384742),pow(math.sin(0.884828),2),1.21022,0.00253644],dtype=np.float32)
+    true_best_val -= thetaMean
+    true_best_val /= (thetaStd + consts.EPSILON)
+
+    outlier_tree = KDTree(outliers)
+    dd , _ = outlier_tree.query(true_best_val)
+    print(dd)
+    
+    return dd
+    
 
 
-def find_holes_in_data(thetaMean : np.array, thetaStd : np.array): 
+
+def find_holes_in_data(thetaMean : np.array, thetaStd : np.array):
+
+    true_best_val = np.array([0.370105,math.log10(0.0203667),math.log10(0.0384742),pow(math.sin(0.884828),2),1.21022,0.00253644],dtype=np.float32)
+    true_best_val -= thetaMean
+    true_best_val /= (thetaStd + consts.EPSILON)
     
     eps, min_freq = estimate_params(freqs=list(range(10,150)), num_epochs = 10, num_random_rows = 200)
     print(f"eps : {eps}")
@@ -96,18 +121,32 @@ def find_holes_in_data(thetaMean : np.array, thetaStd : np.array):
     outliers = []
 
     theta_list = []
+    
+    good_chunks = 0
+    bad_chunks = 0
 
     for idx in tqdm(range(len(theta_paths))):
         path = theta_paths[idx]
         theta_list.append(np.load(path)[::consts.repeatSize])
 
-        if idx % 5 == 0 and idx != 0 :
+        if len(theta_list) == 5 :
             theta_array = np.concatenate(theta_list , axis=0)            
             db = DBSCAN(eps=eps, min_samples=min_freq).fit(theta_array)
             mask = db.labels_ == -1
             outliers.append(theta_array[mask])
 
             theta_list = []
+
+            tmp_tree = KDTree(theta_array)
+            dists , _ = tmp_tree.query(true_best_val, k=min_freq)
+
+            dist = dists[-1]
+            if dist < eps:
+                good_chunks += 1
+            else:
+                bad_chunks += 1
+
+
 
     if theta_list:
         theta_array = np.concatenate(theta_list , axis=0)            
@@ -124,7 +163,7 @@ def find_holes_in_data(thetaMean : np.array, thetaStd : np.array):
     mask = db_outliers.labels_ == -1
 
     outliers_reduced = outliers[mask]
-    print(f"Second Pass : {outliers.shape}")
+    print(f"Second Pass : {outliers_reduced.shape}")
 
 
     outliers_bool = np.zeros(len(outliers_reduced), dtype=bool)
@@ -141,18 +180,38 @@ def find_holes_in_data(thetaMean : np.array, thetaStd : np.array):
     
     outliers_final = np.vstack(outliers_final)
 
-    outliers_final *= (thetaStd + consts.EPSILON)
-    outliers_final += thetaMean
+    #outliers_final *= (thetaStd + consts.EPSILON)
+    #outliers_final += thetaMean
 
-    return outliers_final
+
+    print(f"good_chunks : {good_chunks}")
+    print(f"bad_chunks : {bad_chunks}")
+
+    return outliers_final , eps
 
 
 
 if __name__ == "__main__":
     thetaMean = np.load(consts.theta_mean_path)
     thetaStd = np.load(consts.theta_std_path) 
+    
+    optSpace = "th24vsdm41";
+    opt = "";
+    optSysts = "all";
+    optSamples = "numusel_ncres30sel_nuonesel_fhc_rhc_neardet_fardet";
+    exp_num = 221;
+    
 
-    outliers = find_holes_in_data(thetaMean,thetaStd)
+    stem = optSpace + "_" + optSamples + "_" + str(exp_num) + "_" + optSysts;
+    root_name = "data/minimum_" + stem + ".root";
+    file_name = "minimum/" + stem + "/vals";
+
+
+
+
+    outliers , eps = find_holes_in_data(thetaMean,thetaStd)
+    dd = check_holes(outliers, root_name, file_name, thetaMean, thetaStd )
 
     print(outliers)
+    print(f"dd,eps : {dd},{eps}")
     print(f"Final shape : {outliers.shape}")
