@@ -8,11 +8,9 @@ import matplotlib.pyplot as plt
 from sklearn.cluster import DBSCAN
 
 """
-Find ideal eps and min_freq, plotting or ML technique may be required
-Use for DBScan and get outliers
-Cluster over all files
-Pick representative points
-Figure out Sampling method
+Figure out sampling method
+If multivariate uniform sphere, then figure out the standard deviations for all the points
+if multivariate gaussian, then figure out the covariance matrix
 """
 
 
@@ -46,12 +44,12 @@ def estimate_params(freqs : list, num_epochs : int, num_random_rows : int , num_
         theta_array = np.vstack(theta_list)
         query_array = np.vstack(query_list)
 
-        print(f"theta_array : {theta_array.shape}")
-        print(f"query_array : {query_array.shape}")
+        #print(f"theta_array : {theta_array.shape}")
+        #print(f"query_array : {query_array.shape}")
 
         tree = cKDTree(theta_array)
 
-        for min_freq in tqdm(freqs):
+        for min_freq in freqs:
             dd , _ = tree.query(query_array, k=min_freq+1)
             R_dict[min_freq].append(dd[:,-1])
 
@@ -84,7 +82,8 @@ def estimate_params(freqs : list, num_epochs : int, num_random_rows : int , num_
     return R_means[smallest_idx] , freqs[smallest_idx]
 
 
-
+def generate_data(outliers : np.array):
+    pass
 
 
 def find_holes_in_data(thetaMean : np.array, thetaStd : np.array): 
@@ -119,12 +118,28 @@ def find_holes_in_data(thetaMean : np.array, thetaStd : np.array):
 
 
     outliers = np.concatenate(outliers, axis=0)
+    print(f"First Pass : {outliers.shape}")
 
     db_outliers = DBSCAN(eps=eps, min_samples=min_freq).fit(outliers)
     mask = db_outliers.labels_ == -1
 
-    outliers_final = outliers[mask]
+    outliers_reduced = outliers[mask]
+    print(f"Second Pass : {outliers.shape}")
+
+
+    outliers_bool = np.zeros(len(outliers_reduced), dtype=bool)
+    outliers_tree = KDTree(outliers_reduced)
+    outliers_final = []
+
+    while np.any(outliers_bool == False):
+        query_point = outliers_reduced[np.argmin(outliers_bool)]
+        neighbor_idx = outliers_tree.query_ball_point(query_point, eps, return_sorted=False)
+        outliers_bool[neighbor_idx] = True
+
+        outliers_final.append(query_point)
+
     
+    outliers_final = np.vstack(outliers_final)
 
     outliers_final *= (thetaStd + consts.EPSILON)
     outliers_final += thetaMean
@@ -140,4 +155,4 @@ if __name__ == "__main__":
     outliers = find_holes_in_data(thetaMean,thetaStd)
 
     print(outliers)
-    print(outliers.shape)
+    print(f"Final shape : {outliers.shape}")
