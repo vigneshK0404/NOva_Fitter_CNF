@@ -68,6 +68,49 @@ void generatePriors(std::vector<double>& D24, std::vector<double>& SSQ24,
 
 }
 
+void generatePriors_around_basin(std::vector<double>& D24, std::vector<double>& SSQ24,
+        std::vector<double>& SSQ34, std::vector<double>& DMSQ41, std::vector<double>& DMSQ32,
+        std::vector<double>& SSQ23, double calc_means[], double calc_stds[])
+{
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    std::normal_distribution<double>  delta_24(calc_means[0], calc_stds[0]);
+    std::normal_distribution<double>  sinsq_24(std::log10(calc_means[1]), std::log10(calc_stds[1]));
+    std::normal_distribution<double>  sinsq_34(std::log10(calc_means[2]), std::log10(calc_stds[2]));
+    std::normal_distribution<double>  dmsq_41(std::log10(calc_means[3]), std::log10(calc_stds[3]));
+    std::normal_distribution<double> dmsq_32(calc_means[4], calc_stds[4]);
+    std::normal_distribution<double>  sinsq_23(std::pow(std::sin(calc_means[5]),2), std::pow(std::sin(calc_stds[5]),2);
+    std::uniform_int_distribution<> NormInvOrder(0, 1);
+
+
+    D24.reserve(totalUnique);
+    SSQ24.reserve(totalUnique);
+    SSQ34.reserve(totalUnique);
+    DMSQ41.reserve(totalUnique);
+    DMSQ32.reserve(totalUnique);
+    SSQ23.reserve(totalUnique);
+
+    for(int i = 0; i < totalUnique; ++i)
+    {
+        D24.push_back(delta_24(gen));
+        SSQ24.push_back(sinsq_24(gen));
+        SSQ34.push_back(sinsq_34(gen));
+        SSQ23.push_back(sinsq_23(gen));
+        DMSQ41.push_back(dmsq_41(gen));
+        double dmsq32 = dmsq_32(gen);
+
+        if(NormInvOrder(gen) == 1)
+            dmsq32 = -dmsq32;
+
+        DMSQ32.push_back(dmsq32);
+    }
+
+}
+
+
+
+
 void generate_Preds(unsigned long long int spacing)
 {
 

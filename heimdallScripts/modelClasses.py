@@ -32,7 +32,8 @@ def printNormGrad(parameters : torch.tensor):
     total = 0
     for p in parameters:
         if p.grad is not None:
-            total += p.grad.detach().norm(2).item()
+            total += (p.grad.detach().norm(2).item())**2
+            
 
     return total**0.5
 
@@ -153,7 +154,8 @@ class CNF_trainer():
         self.epoch_list = []
 
         #CNF HYPER-PARAMS TO CHANGE
-        self.max_norm = None
+        self.max_norm_e = None
+        self.max_norm_cnf = None
         
         self.optimizer = torch.optim.Adam([
             {"params": self.EModel.parameters(), "lr": consts.encoder_lr}, 
@@ -166,8 +168,10 @@ class CNF_trainer():
 
     def _burn_in(self,epoch):
 
-        random_samples = random.sample(range(min(4,len(self.data_paths))),4)
-        total = []
+        num_files = min(4, len(self.data_paths))
+        random_samples = random.sample(range(len(self.data_paths)), num_files)
+        total_eGrad = []
+        total_cnfGrad = []
         #print("Burn in Phase, calculating max_norm for gradient clipping for files : ")
 
         for file_idx in random_samples:
@@ -191,12 +195,15 @@ class CNF_trainer():
             
                 eGrad = printNormGrad(self.EModel.parameters())
                 cnfGrad = printNormGrad(self.CNFModel.parameters())
-                total.append((eGrad*eGrad+cnfGrad*cnfGrad)**0.5)
+                total_eGrad.append(eGrad)
+                total_cnfGrad.append(cnfGrad)
         
-        max_norm = torch.tensor([np.percentile(np.asarray(total),99.99)], device = self.gpu_id)
+        max_norm_e = torch.tensor([np.percentile(np.asarray(total_eGrad),99.9)], device = self.gpu_id)
+        max_norm_cnf = torch.tensor([np.percentile(np.asarray(total_cnfGrad),99.9)], device = self.gpu_id)
+
         self.optimizer.zero_grad(set_to_none=True)
 
-        return max_norm
+        return max_norm_e, max_norm_cnf
 
     def _loss_validation(self,epoch):
 
@@ -252,7 +259,9 @@ class CNF_trainer():
         cnf_loss = nll.mean()
         cnf_loss.backward()
 
-        torch.nn.utils.clip_grad_norm_(self.CNFModel.parameters(),max_norm = self.max_norm)
+        torch.nn.utils.clip_grad_norm_(self.CNFModel.parameters(),max_norm = self.max_norm_cnf)
+        torch.nn.utils.clip_grad_norm_(self.EModel.parameters(),max_norm = self.max_norm_e)
+
 
         self.optimizer.step()
 
@@ -285,16 +294,24 @@ class CNF_trainer():
     def _train(self,max_epoch : int, PATH : str):
         for epoch in tqdm(range(max_epoch)):
             if epoch == 0:
-                max_norm = self._burn_in(epoch)   # every rank does this
+                max_norm_e, max_norm_cnf = self._burn_in(epoch)   # every rank does this
 
                 torch.distributed.all_reduce(
-                    max_norm,
+                    max_norm_e,
                     op=torch.distributed.ReduceOp.MAX
                 )
 
-                self.max_norm = max_norm.item()
+                torch.distributed.all_reduce(
+                    max_norm_cnf,
+                    op=torch.distributed.ReduceOp.MAX
+                )
+
+                self.max_norm_e = max_norm_e.item()
+                self.max_norm_cnf = max_norm_cnf.item()
+
                 if self.gpu_id == 0:
-                    print(f"max_norm : {self.max_norm}")
+                    print(f"max_norm_e : {self.max_norm_e}")
+                    print(f"max_norm_cnf : {self.max_norm_cnf}")
 
             self._run_epoch(epoch)
             

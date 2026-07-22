@@ -22,7 +22,7 @@ const std::string optSpace = "th24vsdm41";
 const std::string opt = "";
 const std::string optSysts = "all";
 const std::string optSamples = "numusel_ncres30sel_nuonesel_fhc_rhc_neardet_fardet";
-const int exp_num = 221;
+const int exp_num = 1;
 const int totalBins = 148;
 
 const std::string stem = optSpace + "_" + optSamples + "_" + std::to_string(exp_num) + "_" + optSysts;
@@ -35,7 +35,7 @@ namespace fs = std::filesystem;
 void setCalcVals_from_hist(osc::IOscCalcAdjustable* calc, TH1D* h)
 {
     kFitSinSqTheta34Sterile.SetValue(calc, h->GetBinContent(1));
-    kFitSinSqTheta23Sterile.SetValue(calc, std::pow(std::sin(h->GetBinContent(2)),2));
+    kFitTheta23Sterile.SetValue(calc, h->GetBinContent(2));
     kFitSinSqTheta24Sterile.SetValue(calc, h->GetBinContent(3));
     kFitDmSq41Sterile.SetValue(calc, std::pow(10,h->GetBinContent(4)));
     kFitDelta24InPiUnitsSterile.SetValue(calc,h->GetBinContent(5));     
@@ -43,7 +43,18 @@ void setCalcVals_from_hist(osc::IOscCalcAdjustable* calc, TH1D* h)
 
 }
 
-void setCalcVals(osc::IOscCalcAdjustable* calc, float calcVals[])
+void setCalcVals_from_list(osc::IOscCalcAdjustable* calc, double calcVals[])
+{
+    kFitDelta24InPiUnitsSterile.SetValue(calc,calcVals[0]); 
+    kFitSinSqTheta24Sterile.SetValue(calc, calcVals[1]);
+    kFitSinSqTheta34Sterile.SetValue(calc, calcVals[2]);
+    kFitTheta23Sterile.SetValue(calc, calcVals[3]);
+    kFitDmSq41Sterile.SetValue(calc, calcVals[4]);
+    kFitDmSq32Sterile.SetValue(calc,calcVals[5]);
+
+}
+
+void setCalcVals_from_CNF(osc::IOscCalcAdjustable* calc, float calcVals[])
 {
     kFitDelta24InPiUnitsSterile.SetValue(calc,calcVals[0]); 
     kFitSinSqTheta24Sterile.SetValue(calc, std::pow(10,calcVals[1]));
@@ -54,14 +65,20 @@ void setCalcVals(osc::IOscCalcAdjustable* calc, float calcVals[])
 
 }
 
-void printCalc(osc::IOscCalcAdjustable* calc)
+double[] printCalc(osc::IOscCalcAdjustable* calc)
 {
-    std::cout << " \nDelta24(pi_units) : " <<kFitDelta24InPiUnitsSterile.GetValue(calc) << " , "
-        << " ssq24 : " << kFitSinSqTheta24Sterile.GetValue(calc)  << " , "
-        << " ssq34 : " << kFitSinSqTheta34Sterile.GetValue(calc) << " , "
-        << " ssq23 : " << kFitSinSqTheta23Sterile.GetValue(calc) << " , "
-        << " dmsq41 : " << kFitDmSq41Sterile.GetValue(calc) << " , "
-        << " dmsq32 : " << kFitDmSq32Sterile.GetValue(calc) << std::endl;
+    calcVals = {kFitDelta24InPiUnitsSterile.GetValue(calc),kFitSinSqTheta24Sterile.GetValue(calc),
+        kFitSinSqTheta34Sterile.GetValue(calc),kFitTheta23Sterile.GetValue(calc),
+        kFitDmSq41Sterile.GetValue(calc),kFitDmSq32Sterile.GetValue(calc)};
+
+    std::cout << " \nDelta24(pi_units) : " << calcVals[0] << " , "
+        << " ssq24 : " << calcVals[1]  << " , "
+        << " ssq34 : " << calcVals[2] << " , "
+        << " t23 : " << calcVals[3] << " , "
+        << " dmsq41 : " << calcVals[4] << " , "
+        << " dmsq32 : " << calcValc[5] << std::endl;
+
+    return calcVals;
     
 }
 
@@ -144,6 +161,8 @@ void check_exp()
     nus5p1::GeneratePseudoexpt(samples, calc_true, mx, exp_num);
     auto expt = nus5p1::GetExperiment(samples, mx, opt);    
     auto multiExp = nus5p1::AddConstraints(samples, &expt, opt);
+
+
     MinuitFitter mfitter(&multiExp, fitVars, {}, MinuitFitter::kFast); 
  
     std::cout << "null: " << multiExp.ChiSq(calc_true) << "\n";
@@ -199,6 +218,94 @@ void check_exp()
     return; 
 }
 
+void find_basin(double calc_means[], double calc_stds[])
+{
+    TFile* f = TFile::Open((TString)root_name); 
+    TH1D* h = (TH1D*)f->Get((TString)file_name);
+
+    nus5p1::PISCESHelper ph;
+    auto samples = ph.GetSamplesFromOptString("numusel_ncres30sel_nuonesel_fhc_rhc_neardet_fardet",kPredNoSysts,true);
+    auto mx = ph.GetMatrix(samples, optSysts).release(); 
+    auto fitVars = nus5p1::GetFitVars(optSpace, opt, true);
+
+    auto calc_best = nus5p1::GetOscCalcForFitting(optSpace, opt);
+    nus22::SetParams(calc_best,"3flav");
+
+    setCalcVals_from_hist(calc_best,h);
+    
+    double calcVals[6] = printCalc(calc_best);
+
+    nus5p1::SetData(samples, mx, exp_num, opt);
+    auto expt = nus5p1::GetExperiment(samples, mx, opt);    
+    auto multiExp = nus5p1::AddConstraints(samples,&expt,opt);
+
+    MinuitFitter mfitter(&multiExp, fitVars, {}, MinuitFitter::kFast); 
+
+    double chi_best = multiExp.ChiSq(calc_best);
+
+    std::cout << "Best Chi : " << chi_best << "\n";
+    
+    double ratio = 0.1;
+
+    auto calc_plus = calc_best->Copy();
+    auto calc_minus = calc_best->Copy();
+
+    double calcVals_plus[6];
+    double calcVals_minus[6];
+
+    for(int param_idx = 0; param_idx < 6; ++param_idx)
+    {
+        double param = calcVals[param_idx];
+        double delta = ratio * param;
+
+        for(int i = 0; i < 6; ++i)
+        {
+            calcVals_plus[i] = calcVals[i];
+            calcVals_minus[i] = calcVals[i];
+        }
+
+
+        do
+        {   
+
+            double chi_plus = multiExp.ChiSq(calc_plus);
+            double chi_minus = multiExp.ChiSq(calc_minus);
+
+            bool plus_condition  = (std::abs(chi_plus - chi_best) <= 4);
+            bool minus_condition  = (std::abs(chi_minus - chi_best) <= 4);
+
+
+            if(plus_condition)
+            {
+                calcVals_plus[param_idx] += delta;
+                setCalcVals_from_list(calc_plus,calcVals_plus); 
+            }
+
+
+            if(minus_condition)
+            {
+                calcVals_minus[param_idx] -= delta;            
+                setCalcVals_from_list(calc_minus,calcVals_minus);
+            }
+
+        
+        }while(plus_condition || minus_condition);                  
+        
+    }
+
+    for(int i = 0; i < 6; ++i)
+    {
+        calc_means[i] = (calcVals_plus[i] + calcVals_minus[i])/2;
+        calc_stds[i] = (calcVals_plus[i] - calcVals_minus[i])/2;
+    }
+
+
+
+   
+}
+
+
+/*  
 void plotPriors()
 {
     double dmsq32_min = 2.51e-3 - 6*(0.15e-3);
@@ -226,13 +333,15 @@ void plotPriors()
     }
 
 }
-
+    return; 
+}
+*/
 
 void diagnose()
 {
-    //create_exp();
+    create_exp();
     //check_exp();
-    plotPriors();
+    //plotPriors();
 }
 
 
