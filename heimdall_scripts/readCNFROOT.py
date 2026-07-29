@@ -57,9 +57,9 @@ def calculate_std(raw_data_path_train : str):
     return
 
 
-def applyStdMain(raw_data_path : str, apply_site : str): #apply_site is either training or validation
-
-    files = sorted(glob(f"{raw_data_path}{apply_site}/*.npz"))
+def applyStdMain(raw_data_path : Path, apply_site : str): #apply_site is either training or validation
+    file_path = Path(raw_data_path) / apply_site / "*.npz"
+    files = sorted(glob(str(file_path)))
 
     theta_mean = np.load(consts.theta_mean_path)
     theta_std = np.load(consts.theta_std_path)
@@ -68,7 +68,7 @@ def applyStdMain(raw_data_path : str, apply_site : str): #apply_site is either t
     data_std = np.load(consts.data_std_path) 
 
 
-    data_output_path = f"{consts.PROCESSED_DATA}/{apply_site}"
+    data_output_path = consts.PROCESSED_DATA / apply_site
 
     for file_name in tqdm(files):
         x = np.load(file_name)
@@ -97,8 +97,8 @@ def applyStdMain(raw_data_path : str, apply_site : str): #apply_site is either t
         split_data = np.array_split(data_AT,5)
 
         for i in range(len(split_theta)):
-            out_file_t = Path(data_output_path) / (Path(file_name).stem + f"_theta_{i}")
-            out_file_d = Path(data_output_path) / (Path(file_name).stem + f"_data_{i}")    
+            out_file_t = data_output_path / (Path(file_name).stem + f"_theta_{i}")
+            out_file_d = data_output_path / (Path(file_name).stem + f"_data_{i}")    
             np.save(out_file_t, split_theta[i])
             np.save(out_file_d, split_data[i]) 
 
@@ -123,7 +123,7 @@ def applyStd(data): #overload for validation
 
 def getSterileData():
  
-    calculate_std(consts.RAW_DATA_TRAINING)
+    #calculate_std(consts.RAW_DATA_TRAINING)
 
     print("Calculated Standardizations")
 

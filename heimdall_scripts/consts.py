@@ -50,15 +50,15 @@ PROCESSED_DATA_STATS = PROCESSED_DATA / "stats"
 
 TMP_ROOT_FILES = DATA_ROOT / "tmp_root_files"
 
-theta_mean_path = PROCESSED_DATA_STATS / "theta_mean.npy"
-data_mean_path = PROCESSED_DATA_STATS / "data_mean.npy"
-theta_std_path = PROCESSED_DATA_STATS / "theta_std.npy"
-data_std_path = PROCESSED_DATA_STATS / "data_std.npy"
+theta_mean_path = str(PROCESSED_DATA_STATS / "theta_mean.npy")
+data_mean_path = str(PROCESSED_DATA_STATS / "data_mean.npy")
+theta_std_path = str(PROCESSED_DATA_STATS / "theta_std.npy")
+data_std_path = str(PROCESSED_DATA_STATS / "data_std.npy")
 
-data_path = PROCESSED_DATA_TRAINING / "*_data_*"
-theta_path = PROCESSED_DATA_TRAINING / "*_theta_*"
-val_data_path = PROCESSED_DATA_VAL / "*_data_*"
-val_theta_path = PROCESSED_DATA_VAL / "*_theta_*"
+data_path = str(PROCESSED_DATA_TRAINING / "*_data_*")
+theta_path = str(PROCESSED_DATA_TRAINING / "*_theta_*")
+val_data_path = str(PROCESSED_DATA_VAL / "*_data_*")
+val_theta_path = str(PROCESSED_DATA_VAL / "*_theta_*")
 
 
 def create_workspace():

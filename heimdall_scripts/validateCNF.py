@@ -76,10 +76,6 @@ def generate_seeds(model_PATH : str, NumSamples : int,
         samples = CNFModel.flow.sample(NumSamples,context=x_en).cpu()
         sample_cut = samples.reshape(-1,samples.shape[-1]).numpy()
         
-        #print(x_en.shape)
-        #print(true_best_value.shape)
-        best_log = CNFModel(true_best_value,x_en)
-        
         data_bunches = np.array_split(sample_cut,len(data))
         theta_bunches = torch.split(x_en,1) 
 
@@ -89,11 +85,6 @@ def generate_seeds(model_PATH : str, NumSamples : int,
 
             representatives = []
             clusters = ModeMeanShift(bunch, 0.6, 1000)
-            cluster_len = len(clusters)
-            len_list.append(cluster_len)
-            total_len += cluster_len
-
-            print(f"Num Clusters : {cluster_len}")
 
             for cluster in clusters:
                 #print(cluster.shape)
@@ -101,17 +92,28 @@ def generate_seeds(model_PATH : str, NumSamples : int,
                 cluster = torch.tensor(cluster,device=device).float()
                 x_en_Exp = true_theta.unsqueeze(1).expand(1,kSamples,-1).reshape(kSamples,-1)
                 firstPass = CNFModel(cluster,x_en_Exp)
-                mask = np.isfinite(firstPass)
+                
+                mask = torch.isfinite(firstPass)
+
+                if not finite_mask.any():
+                    print("Warning: cluster produced no finite log probabilities")
+                    continue
+
                 firstPass = firstPass[mask]
+                cluster = cluster[mask]
                 infer = cluster[torch.argmax(firstPass)]
-                representatives.append(infer)   
+                representatives.append(infer) 
+
+            cluster_len = len(representatives)
+            len_list.append(cluster_len)
+            total_len += cluster_len
+            print(f"Num Clusters : {cluster_len}")
    
             reps = torch.stack(representatives)
             x_en_reps = true_theta.unsqueeze(1).expand(1,len(reps),-1).reshape(len(reps),-1)
             log_vals = CNFModel(reps,x_en_reps)
             logRankings = log_vals.argsort(descending=True)
             print(f"logRankings : {log_vals[logRankings]}")
-            print(f"bestLog : {best_log}")
             rep_list.append(np.asarray(reps[logRankings].cpu()))
 
             
@@ -130,7 +132,7 @@ def generate_seeds(model_PATH : str, NumSamples : int,
     assert len_arr.shape[1] == ncols, len_arr.shape
     print(len_arr)
 
-    with uproot.recreate(consts.INFERENCE_DATA / "cnfpreds_diagnose.root") as f:
+    with uproot.recreate(str(consts.INFERENCE_DATA / "cnfpreds_diagnose.root")) as f:
         f["tree"] = {"reps": final_reps}
 
         f.mktree("lens", {"lens": np.dtype((np.int16, (ncols,)))})

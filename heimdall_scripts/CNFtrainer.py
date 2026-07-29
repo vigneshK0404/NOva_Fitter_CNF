@@ -1,5 +1,5 @@
 from modelClasses import ddp_setup, CNF, CNF_trainer, Encoder
-from validateCNF import valCNF, generate_seeds
+from validateCNF import generate_seeds
 import consts
 
 
@@ -115,7 +115,7 @@ if __name__ == "__main__":
                        num_bins = consts.num_bins, tails = consts.tails, 
                        tail_bound = consts.tail_bound) 
 
-        ckpt = torch.load(model_PATH / "Model_checkpoint.pt", map_location=device)
+        ckpt = torch.load(str(model_PATH / "Model_checkpoint.pt"), map_location=device)
         CNFModel.load_state_dict(ckpt["CNF_Model"])
         CNFModel.eval()
         CNFModel = CNFModel.to(device)
