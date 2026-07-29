@@ -1,3 +1,5 @@
+from pathlib import Path
+import getpass
 #Change hyper-params here
 
 #Standardizing_Params
@@ -29,20 +31,50 @@ total_epochs = 12
 encoder_lr = 1e-3
 cnf_lr = 1e-3
 
-#Standardizing_Paths
-base_path = "/share/lazy/vigneshk/data/"
+#Standardizing Paths
+USERNAME = getpass.getuser()
+
+CODE_ROOT = Path("/raid") / USERNAME
+DATA_ROOT = Path("/share/lazy") / USERNAME / "data"
+
+MODELS = CODE_ROOT / "Models"
+INFERENCE_DATA = CODE_ROOT / "inference_data"
+
+RAW_DATA = DATA_ROOT / "raw_data"
+RAW_DATA_TRAINING = RAW_DATA / "training"
+RAW_DATA_VAL = RAW_DATA / "validation"
+PROCESSED_DATA = DATA_ROOT / "processed"
+PROCESSED_DATA_TRAINING = PROCESSED_DATA / "training"
+PROCESSED_DATA_VAL = PROCESSED_DATA / "validation"
+PROCESSED_DATA_STATS = PROCESSED_DATA / "stats"
+
+TMP_ROOT_FILES = DATA_ROOT / "tmp_root_files"
+
+theta_mean_path = PROCESSED_DATA_STATS / "theta_mean.npy"
+data_mean_path = PROCESSED_DATA_STATS / "data_mean.npy"
+theta_std_path = PROCESSED_DATA_STATS / "theta_std.npy"
+data_std_path = PROCESSED_DATA_STATS / "data_std.npy"
+
+data_path = PROCESSED_DATA_TRAINING / "*_data_*"
+theta_path = PROCESSED_DATA_TRAINING / "*_theta_*"
+val_data_path = PROCESSED_DATA_VAL / "*_data_*"
+val_theta_path = PROCESSED_DATA_VAL / "*_theta_*"
 
 
-#Testing_Paths
-processed_path = f"{base_path}processed/"
-data_path = f"{processed_path}training/*_data_*"
-theta_path = f"{processed_path}training/*_theta_*"
-val_data_path = f"{processed_path}testing/*_data_*"
-val_theta_path = f"{processed_path}testing/*_theta_*"
-theta_mean_path = f"{processed_path}stats/theta_mean.npy"
-theta_std_path = f"{processed_path}stats/theta_std.npy"
-data_mean_path = f"{processed_path}stats/data_mean.npy"
-data_std_path = f"{processed_path}stats/data_std.npy"
-test_data_path = f"{processed_path}testing/17_data_0.npy"
-test_theta_path = f"{processed_path}testing/17_theta_0.npy"
+def create_workspace():
+
+    dirs = [MODELS, INFERENCE_DATA, RAW_DATA_TRAINING, 
+            RAW_DATA_VAL, PROCESSED_DATA_TRAINING, 
+            PROCESSED_DATA_VAL, PROCESSED_DATA_STATS , TMP_ROOT_FILES]
+
+    for d in dirs :
+        d.mkdir(parents=True, exist_ok=True)
+
+    print(f"Workspace created at {CODE_ROOT}")
+    print(f"Data-space created at {DATA_ROOT}")
+
+
+if __name__ == "__main__":
+    create_workspace()
+    
 

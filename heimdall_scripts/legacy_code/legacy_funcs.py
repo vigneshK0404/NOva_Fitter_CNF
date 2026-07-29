@@ -1,9 +1,18 @@
-from fpdf import FPDF
-import matplotlib.pyplot as plt
-import numpy as np
-import pickle
-import torch
-from sklearn.cluster import MeanShift, estimate_bandwidth, DBSCAN
+
+def unpacknpz(base_path : str, handle : str):
+    data_path = f"{base_path}processed/{handle}/"
+
+    files = sorted(glob(f"{data_path}*.npz"))
+
+    for file_name in tqdm(files):
+        x = np.load(file_name)
+        out_file_t = Path(data_path) / ("theta_"+ Path(file_name).stem)
+        out_file_d = Path(data_path) / ("data_"+ Path(file_name).stem)
+        
+        np.save(out_file_t, x["params"])
+        np.save(out_file_d, x["data"])
+
+        os.remove(file_name)
 
 def findMode(thetaDist : np.array):
 

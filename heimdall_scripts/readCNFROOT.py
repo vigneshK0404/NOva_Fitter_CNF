@@ -1,14 +1,16 @@
+import consts
+
 import numpy as np
 import uproot
 from pathlib import Path
 from glob import glob
 from tqdm import tqdm
 import os 
-import consts
 
-def calculate_std(base_path : str):
 
-    files = sorted(glob(f"{base_path}training/*.npz"))
+def calculate_std(raw_data_path_train : str):
+
+    files = sorted(glob(f"{raw_data_path_train}/*.npz"))
 
     theta_sum = 0
     num_samples = 0
@@ -55,9 +57,9 @@ def calculate_std(base_path : str):
     return
 
 
-def applyStdMain(base_path : str, apply_site : str): #apply_site is either training or testing
+def applyStdMain(raw_data_path : str, apply_site : str): #apply_site is either training or validation
 
-    files = sorted(glob(f"{base_path}{apply_site}/*.npz"))
+    files = sorted(glob(f"{raw_data_path}{apply_site}/*.npz"))
 
     theta_mean = np.load(consts.theta_mean_path)
     theta_std = np.load(consts.theta_std_path)
@@ -66,8 +68,7 @@ def applyStdMain(base_path : str, apply_site : str): #apply_site is either train
     data_std = np.load(consts.data_std_path) 
 
 
-    data_output_path = f"{base_path}processed/{apply_site}"
-    Path(data_output_path).mkdir(parents=True, exist_ok=True)
+    data_output_path = f"{consts.PROCESSED_DATA}/{apply_site}"
 
     for file_name in tqdm(files):
         x = np.load(file_name)
@@ -101,7 +102,7 @@ def applyStdMain(base_path : str, apply_site : str): #apply_site is either train
             np.save(out_file_t, split_theta[i])
             np.save(out_file_d, split_data[i]) 
 
-        #os.remove(file_name) #TODO: Remove if space limited, moving data to lazy
+        #os.remove(file_name) #remove if space limited, moving data to lazy
         
     return
 
@@ -120,42 +121,22 @@ def applyStd(data): #overload for validation
     return data_AT
 
 
-
-def unpacknpz(base_path : str, handle : str):
-    data_path = f"{base_path}processed/{handle}/"
-
-    files = sorted(glob(f"{data_path}*.npz"))
-
-    for file_name in tqdm(files):
-        x = np.load(file_name)
-        out_file_t = Path(data_path) / ("theta_"+ Path(file_name).stem)
-        out_file_d = Path(data_path) / ("data_"+ Path(file_name).stem)
-        
-        np.save(out_file_t, x["params"])
-        np.save(out_file_d, x["data"])
-
-        os.remove(file_name)
-
-
-def getSterileData(base_path : str):
-    print(base_path)
+def getSterileData():
  
-    #calculate_std(base_path)
+    calculate_std(consts.RAW_DATA_TRAINING)
 
     print("Calculated Standardizations")
 
-    applyStdMain(base_path, "training")
+    applyStdMain(consts.RAW_DATA, "training")
 
     print("Standardized and Randomized Training Data")    
 
-    applyStdMain(base_path, "testing")
+    applyStdMain(consts.RAW_DATA, "validation")
 
-    print("Standardized Testing Data. Complete")
+    print("Standardized Validation Data. Complete")
        
 
 if __name__ == "__main__":
-    base_path = consts.base_path
-    getSterileData(base_path)
-    #unpacknpz(base_path,"training")
-    #unpacknpz(base_path,"testing")
+    getSterileData()
+
 

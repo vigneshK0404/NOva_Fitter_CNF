@@ -1,12 +1,15 @@
+import consts
+
 import uproot
 import numpy as np
 import glob
 from tqdm import tqdm
 import os
+from pathlib import Path
 
 if __name__ == "__main__":        
 
-    files = sorted(glob.glob("data/*.root"))
+    files = sorted(glob.glob(consts.TMP_ROOT_FILES/"*.root"))
     dataList = []
     paramList = []
     failList = []
@@ -24,6 +27,8 @@ if __name__ == "__main__":
             
             branches = tree.arrays()
 
+
+
         data = np.array(branches["data"],dtype = np.int32)
         params = np.array(branches["params"], dtype = np.float32)
         dataList.append(data)
@@ -33,9 +38,9 @@ if __name__ == "__main__":
             data_stack = np.vstack(dataList)
             param_stack = np.vstack(paramList)
 
-            np.savez(f"data/merged/{idx}",data = data_stack, params = param_stack)
+            np.savez(f"{consts.RAW_DATA_TRAINING}/{idx}", data = data_stack, params = param_stack)
             idx += 1
-            print(f"Stacked {len(dataList)} root files, saved merged/{idx}.npz")
+            print(f"Stacked {len(dataList)} root files, saved {consts.RAW_DATA_TRAINING}/{idx}.npz")
                             
             dataList = []
             paramList = []
@@ -45,10 +50,10 @@ if __name__ == "__main__":
     if len(dataList) > 0:
         data_stack = np.vstack(dataList)
         param_stack = np.vstack(paramList)
-        np.savez(f"data/merged/{idx}",data = data_stack, params = param_stack)
-        print(f"Stacked {len(dataList)} root files, saved merged/{idx}.npz")
+        np.savez(f"{consts.RAW_DATA_VAL}{idx}",data = data_stack, params = param_stack)
+        print(f"Stacked {len(dataList)} root files, saved {consts.RAW_DATA_VAL}/{idx}.npz")
 
-    print(failList)
+    print(f"Opening failed for : {failList}, \nitems deleted")
 
 
 

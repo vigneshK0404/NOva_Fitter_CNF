@@ -1,4 +1,8 @@
 from modelClasses import ddp_setup, CNF, CNF_trainer, Encoder
+from validateCNF import valCNF, generate_seeds
+import consts
+
+
 import torch
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
@@ -9,9 +13,6 @@ import sys
 import pickle
 from pathlib import Path
 from glob import glob
-
-from validateCNF import valCNF, generate_seeds
-import consts
 
 def prepare_Models(rank : int, hyper_params : dict):  
 
@@ -52,7 +53,7 @@ def prepare_Models(rank : int, hyper_params : dict):
 
     return e, cnf
 
-def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hyper_params : dict, base_PATH : str):
+def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hyper_params : dict, model_PATH : str):
     hyper_params = dict(base_hyper_params)
     ddp_setup(rank, world_size)
     Emodel, CNFmodel = prepare_Models(rank, hyper_params)
@@ -66,11 +67,11 @@ def main(rank: int, world_size: int, total_epochs: int, batch_size: int, base_hy
 
     if rank == 0:
         hyper_params["Optimizer"] = str(trainer.optimizer)
-        PATH = base_PATH + "hP.bin" 
+        PATH = model_PATH / "hP.bin" 
         with open(PATH, 'wb') as handle:
             pickle.dump(hyper_params, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    trainer._train(total_epochs,base_PATH)
+    trainer._train(total_epochs, model_PATH)
     torch.distributed.barrier() #makes sure all GPUs finish before next one starts
     destroy_process_group()
 
@@ -82,8 +83,8 @@ if __name__ == "__main__":
     runVal = args[1]
     CNFName = args[2]
 
-    PATH = f"Models/{CNFName}/"
-    Path(PATH).mkdir(parents=True, exist_ok=True)
+    model_PATH = Path(f"Models/{CNFName}")
+    model_PATH.mkdir(parents=True, exist_ok=True)
 
     CNF_hyperParams = {}
 
@@ -91,16 +92,14 @@ if __name__ == "__main__":
              "Grad Clip" : True,
              "Epochs" : consts.total_epochs}
 
-    mp.spawn(main, args=(world_size, consts.total_epochs, consts.batch_size, CNF_hyperParams, PATH), nprocs=world_size) 
+    mp.spawn(main, args=(world_size, consts.total_epochs, consts.batch_size, CNF_hyperParams, model_PATH), nprocs=world_size) 
     
     print("Finished")
     
     if runVal == "True" :
 
         thetaMean = np.load(consts.theta_mean_path)
-        thetaStd = np.load(consts.theta_std_path) 
-        #dataTest = torch.from_numpy(np.load(consts.test_data_path)[:300000])
-        #paramsTest = np.load(consts.test_theta_path)[:300000]
+        thetaStd = np.load(consts.theta_std_path)  
 
         dnumber = 0
         device = torch.device(f"cuda:{dnumber}" if torch.cuda.is_available() else "cpu")
@@ -116,7 +115,7 @@ if __name__ == "__main__":
                        num_bins = consts.num_bins, tails = consts.tails, 
                        tail_bound = consts.tail_bound) 
 
-        ckpt = torch.load(PATH + "Model_checkpoint.pt", map_location=device)
+        ckpt = torch.load(model_PATH / "Model_checkpoint.pt", map_location=device)
         CNFModel.load_state_dict(ckpt["CNF_Model"])
         CNFModel.eval()
         CNFModel = CNFModel.to(device)
@@ -125,10 +124,7 @@ if __name__ == "__main__":
         EModel.eval()
         EModel = EModel.to(device)
 
-        #valCNF(PATH, EModel, CNFModel, device,
-        #        thetaMean,thetaStd,dataTest,paramsTest)
-        
-        generate_seeds(consts.base_path, 50000, EModel , CNFModel, device, thetaMean, thetaStd)
+        generate_seeds(model_PATH, 50000, EModel , CNFModel, device, thetaMean, thetaStd)
 
 
 

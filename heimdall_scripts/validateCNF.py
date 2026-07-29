@@ -54,14 +54,14 @@ def write_architecture(base_PATH : str):
     pdf.output(base_PATH + "Architecture.pdf","F")
 
 
-def generate_seeds(data_path : str ,base_PATH : str, NumSamples : int, 
+def generate_seeds(model_PATH : str, NumSamples : int, 
                   EModel : Encoder, CNFModel : CNF, device, 
                   thetaMean, thetaStd):
 
     
-    write_architecture(base_PATH)
+    write_architecture(model_PATH)
 
-    file = uproot.open(data_path + "diagnoseData.root")
+    file = uproot.open(consts.INFERENCE_DATA / "diagnoseData.root")
     tree = file["dataTree"]
     branches = tree.arrays()
     data = np.array(branches["data"],dtype=np.int32)
@@ -130,7 +130,7 @@ def generate_seeds(data_path : str ,base_PATH : str, NumSamples : int,
     assert len_arr.shape[1] == ncols, len_arr.shape
     print(len_arr)
 
-    with uproot.recreate(f"{data_path}cnfpreds_diagnose.root") as f:
+    with uproot.recreate(consts.INFERENCE_DATA / "cnfpreds_diagnose.root") as f:
         f["tree"] = {"reps": final_reps}
 
         f.mktree("lens", {"lens": np.dtype((np.int16, (ncols,)))})
@@ -141,7 +141,7 @@ def generate_seeds(data_path : str ,base_PATH : str, NumSamples : int,
 
 if __name__ == "__main__":
 
-    base_PATH = "Models/NOvACNF_RedOnPlat_lr/"
+    model_PATH = "Models/NOvACNF_RedOnPlat_lr/"
     thetaMean = np.load(consts.theta_mean_path)
     thetaStd = np.load(consts.theta_std_path) 
 
@@ -158,7 +158,7 @@ if __name__ == "__main__":
                    num_bins = consts.num_bins, tails = consts.tails, 
                    tail_bound = consts.tail_bound) 
 
-    ckpt = torch.load(base_PATH + "Model_checkpoint.pt", map_location=device)
+    ckpt = torch.load(model_PATH + "Model_checkpoint.pt", map_location=device)
     CNFModel.load_state_dict(ckpt["CNF_Model"])
     CNFModel.eval()
     CNFModel = CNFModel.to(device)
@@ -167,6 +167,6 @@ if __name__ == "__main__":
     EModel.eval()
     EModel = EModel.to(device)
         
-    generate_seeds(consts.base_path, base_PATH, 50000, EModel , CNFModel, device, thetaMean, thetaStd)
+    generate_seeds(model_PATH, 50000, EModel , CNFModel, device, thetaMean, thetaStd)
     
 
