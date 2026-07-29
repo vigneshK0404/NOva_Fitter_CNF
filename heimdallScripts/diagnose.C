@@ -129,7 +129,33 @@ void find_basin(double calc_means[], double calc_stds[])
     
     std::vector<double> calcVals = printCalc(calc_best);
 
-    nus5p1::SetData(samples, mx, exp_num, opt);
+    calc_means[0] = calcVals[0]; 
+    calc_means[1] = std::log10(calcVals[1]);
+    calc_means[2] = std::log10(calcVals[2]);
+    calc_means[3] = calcVals[3]; 
+    calc_means[4] = std::log10(calcVals[4]);
+    calc_means[5] = calcVals[5];
+
+    calc_stds[0] = calcVals[0]/2; 
+    calc_stds[1] = std::log10(calcVals[1])*0.15;
+    calc_stds[2] = std::log10(calcVals[2])*0.15;
+    calc_stds[3] = calcVals[3]/2; 
+    calc_stds[4] = std::log10(calcVals[4])*0.15;
+    calc_stds[5] = calcVals[5]/2;
+
+
+    std::cout << "PRINTING STDS\n";
+    for(int k = 0; k < 6; ++k)
+    {
+        std::cout << calc_stds[k] << ",";
+    }
+
+
+    
+
+    
+
+    /*nus5p1::SetData(samples, mx, exp_num, opt);
     auto expt = nus5p1::GetExperiment(samples, mx, opt);    
     auto multiExp = nus5p1::AddConstraints(samples,&expt,opt);
 
@@ -139,7 +165,7 @@ void find_basin(double calc_means[], double calc_stds[])
 
     std::cout << "Best Chi : " << chi_best << "\n";
     
-    double ratio = 0.15; 
+    double ratio = 0.01; 
 
     
     std::vector<double> calcVals_plus_tmp(6);
@@ -177,8 +203,8 @@ void find_basin(double calc_means[], double calc_stds[])
             double chi_diff_plus = std::abs(chi_plus - chi_best);
             double chi_diff_minus = std::abs(chi_minus - chi_best);
 
-            plus_condition  = (chi_diff_plus <= 3);
-            minus_condition  = (chi_diff_minus <= 3);
+            plus_condition  = (chi_diff_plus <= 10);
+            minus_condition  = (chi_diff_minus <= 10);
 
                         
             double num = 0;
@@ -262,9 +288,10 @@ void find_basin(double calc_means[], double calc_stds[])
     calc_stds[4] = 0.5*(std::log10(calcVals_plus[4]) - std::log10(calcVals_minus[4]));
 
     calc_means[5] = 0.5*(calcVals_plus[5] + calcVals_minus[5]); 
-    calc_stds[5] = 0.5*(calcVals_plus[5] - calcVals_minus[5]);
+    calc_stds[5] = 0.5*(calcVals_plus[5] - calcVals_minus[5]);*/
 
-
+    
+    
 
 
 }
