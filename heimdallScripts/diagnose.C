@@ -136,18 +136,20 @@ void find_basin(double calc_means[], double calc_stds[])
     calc_means[4] = std::log10(calcVals[4]);
     calc_means[5] = calcVals[5];
 
-    calc_stds[0] = calcVals[0]/2; 
-    calc_stds[1] = std::log10(calcVals[1])*0.15;
-    calc_stds[2] = std::log10(calcVals[2])*0.15;
-    calc_stds[3] = calcVals[3]/2; 
-    calc_stds[4] = std::log10(calcVals[4])*0.15;
-    calc_stds[5] = calcVals[5]/2;
+    calc_stds[0] = calcVals[0]/4; 
+    calc_stds[1] = std::log10(calcVals[1])*0.1;
+    calc_stds[2] = std::log10(calcVals[2])*0.1;
+    calc_stds[3] = calcVals[3]/4; 
+    calc_stds[4] = std::log10(calcVals[4])*0.1;
+    calc_stds[5] = calcVals[5]/4;
 
 
     std::cout << "PRINTING STDS\n";
     for(int k = 0; k < 6; ++k)
     {
-        std::cout << calc_stds[k] << ",";
+        double plus = calc_means[k] + 3*calc_stds[k];
+        double minus = calc_means[k] - 3*calc_stds[k];
+        std::cout << "Param: " << k << " (" << minus << " - " << plus << ")\n";
     }
 
 
@@ -307,7 +309,7 @@ void generatePriors_around_basin(std::vector<double>& D24, std::vector<double>& 
     std::normal_distribution<double>  sinsq_24(calc_means[1], calc_stds[1]);
     std::normal_distribution<double>  sinsq_34(calc_means[2], calc_stds[2]);
     std::normal_distribution<double>  dmsq_41(calc_means[3], calc_stds[3]);
-    std::normal_distribution<double> dmsq_32(calc_means[4], calc_stds[4]);
+    std::normal_distribution<double> dmsq_32(calc_means[4],0.12e-3);
     std::normal_distribution<double>  sinsq_23(calc_means[5], calc_stds[5]);
     std::uniform_int_distribution<> NormInvOrder(0, 1);
 
