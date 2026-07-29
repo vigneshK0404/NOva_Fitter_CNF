@@ -50,7 +50,7 @@ if __name__ == "__main__":
     if len(dataList) > 0:
         data_stack = np.vstack(dataList)
         param_stack = np.vstack(paramList)
-        np.savez(f"{consts.RAW_DATA_VAL}{idx}",data = data_stack, params = param_stack)
+        np.savez(f"{consts.RAW_DATA_VAL}/{idx}",data = data_stack, params = param_stack)
         print(f"Stacked {len(dataList)} root files, saved {consts.RAW_DATA_VAL}/{idx}.npz")
 
     print(f"Opening failed for : {failList}, \nitems deleted")

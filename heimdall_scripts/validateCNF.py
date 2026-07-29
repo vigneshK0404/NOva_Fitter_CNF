@@ -6,12 +6,12 @@ import torch
 import numpy as np
 from tqdm import tqdm
 import uproot
-from sklearn.cluster import MeanShift
+from sklearn.cluster import MeanShift, estimate_bandwidth
 import pickle
 from fpdf import FPDF
 
 
-def ModeMeanShift(thetaDist: np.array, smoothing: float, minRatio: int):
+def ModeMeanShift(thetaDist: np.array, smoothing: float):
 
     min_freq = max(5, len(thetaDist) // 10000)
     bandwidth = estimate_bandwidth(thetaDist, quantile=0.05, n_samples=min(len(thetaDist), 2000)) * smoothing
@@ -29,13 +29,19 @@ def ModeMeanShift(thetaDist: np.array, smoothing: float, minRatio: int):
     clusters = []
 
     for i in np.unique(labels):
+        if label == -1:
+            continue
+
+
         mask = (labels == i)
-        clusters.append(thetaDist[mask])
+        cluster = thetaDist[mask]
+        if len(cluster) > 0:
+            clusters.append(cluster)
 
     return clusters
 
-def write_architecture(base_PATH : str):
-    PATH = base_PATH + "hP.bin"
+def write_architecture(model_PATH):
+    PATH = model_PATH / "hP.bin"
     with open(PATH, 'rb') as handle:
         hyper_params = pickle.load(handle)
 
@@ -54,7 +60,7 @@ def write_architecture(base_PATH : str):
     pdf.output(base_PATH + "Architecture.pdf","F")
 
 
-def generate_seeds(model_PATH : str, NumSamples : int, 
+def generate_seeds(model_PATH, NumSamples : int, 
                   EModel : Encoder, CNFModel : CNF, device, 
                   thetaMean, thetaStd):
 
@@ -95,7 +101,7 @@ def generate_seeds(model_PATH : str, NumSamples : int,
                 
                 mask = torch.isfinite(firstPass)
 
-                if not finite_mask.any():
+                if not mask.any():
                     print("Warning: cluster produced no finite log probabilities")
                     continue
 
@@ -143,7 +149,7 @@ def generate_seeds(model_PATH : str, NumSamples : int,
 
 if __name__ == "__main__":
 
-    model_PATH = "Models/NOvACNF_RedOnPlat_lr/"
+    model_PATH = Path("Models") / "NOvACNF_RedOnPlat_lr"
     thetaMean = np.load(consts.theta_mean_path)
     thetaStd = np.load(consts.theta_std_path) 
 
@@ -160,7 +166,7 @@ if __name__ == "__main__":
                    num_bins = consts.num_bins, tails = consts.tails, 
                    tail_bound = consts.tail_bound) 
 
-    ckpt = torch.load(model_PATH + "Model_checkpoint.pt", map_location=device)
+    ckpt = torch.load(str(model_PATH / "Model_checkpoint.pt"), map_location=device)
     CNFModel.load_state_dict(ckpt["CNF_Model"])
     CNFModel.eval()
     CNFModel = CNFModel.to(device)

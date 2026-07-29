@@ -331,13 +331,13 @@ class CNF_trainer():
 
                 plt.plot(self.cnf_losses, marker="x",markersize=10,markeredgecolor="black")
                 plt.grid()                    
-                plt.savefig(PATH+"CNFLoss.png")
+                plt.savefig(PATH / "CNFLoss.png")
                 plt.clf()
                 print(f"Saved CNF Loss Plot at {PATH} CNFLOSS.png")
 
                 plt.plot(self.epoch_list,self.val_cnf_losses.cpu(), marker="x",markersize=10,markeredgecolor="black")
                 plt.grid()
-                plt.savefig(PATH+"val_CNFLoss.png")
+                plt.savefig(PATH / "val_CNFLoss.png")
                 plt.clf()
                 print(f"Saved CNF Loss Plot at {PATH} val_CNFLOSS.png")
 
@@ -349,7 +349,7 @@ class CNF_trainer():
         "CNF_Optim": self.optimizer.state_dict(),
         "E_Model": self.EModel.module.state_dict(),
         "E_Optim": self.optimizer.state_dict(),
-        },  PATH + "Model_checkpoint.pt")
+        },  PATH / "Model_checkpoint.pt")
 
         print(f"Training checkpoint saved at {PATH}")
 
