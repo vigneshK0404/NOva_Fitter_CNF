@@ -1,0 +1,26 @@
+name: cnf
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+  - nodefaults
+dependencies:
+  - python=3.9
+  - numpy
+  - numba
+  - matplotlib
+  - seaborn
+  - plotly
+  - scikit-learn
+  - pytest
+  - tensorboard
+  - uproot
+  - mpi4py
+  - anywidget
+  - pytorch=1.10.*
+  - cudatoolkit=11.1
+  - pytorch-lightning=1.6.*
+  - torchmetrics=0.9.*
+  - pip
+  - pip:
+    - nflows
