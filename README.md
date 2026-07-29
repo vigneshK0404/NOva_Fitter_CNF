@@ -154,7 +154,7 @@ This creates the working directories expected by the pipeline.
 The repository assumes that large generated datasets are stored under:
 
 ```text
-/share/lazy/$USER
+/share/lazy/$USER/data
 ```
 
 rather than `/raid/$USER`, because of storage limitations on the RAID filesystem.
@@ -175,7 +175,7 @@ For example:
 
 ```bash
 scp <nova-host>:<path-to-root-files>/*.root \
-    /share/lazy/$USER/tmp_root_files/
+    <heimdall>:/share/lazy/$USER/tmp_root_files/
 ```
 
 Replace the host and path placeholders with the appropriate NOvA machine and output location.
@@ -243,7 +243,7 @@ Model checkpoints, validation plots, logs, and a PDF representation of the model
 Validation has two parts:
 
 1. Inspect the validation plots produced during training.
-2. Test whether the generated CNF seeds improve the downstream sterile-neutrino fit.
+2. Test whether the generated CNF seeds improve the sterile-neutrino fit.
 
 ## 5.1 Generate validation experiments
 
@@ -270,7 +270,7 @@ For example:
 
 ```bash
 scp <nova-host>:<path-to-generated-inference-file>.root \
-    /raid/$USER/inference_data/
+    <heimall>/raid/$USER/inference_data/
 ```
 
 ## 5.2 Generate CNF representatives
@@ -356,7 +356,7 @@ generating parameter point != fitted best-fit parameter point
 
 This may be especially important when systematic effects, degeneracies, and statistical fluctuations are present.
 
-The CNF is currently trained using generating parameters as truth labels. If the desired inference target is actually the fitter's best-fit point, the training labels may not correspond exactly to the downstream optimization target.
+The CNF is currently trained using generating parameters as truth labels. If ,however, these truth labels do not correspond to the best fit points. It could explain the issue.
 
 One way to investigate this is to:
 
@@ -373,6 +373,11 @@ diagnose.C
 
 in the NOvA environment.
 
+The relevant bash script for running these global fits on the grid is also provided as 
+
+```text
+generate.sh
+```
 It may also be useful to generate data without statistical fluctuations and test whether the fitted best-fit point then agrees with the generating point.
 
 ## Model limitations
@@ -415,6 +420,7 @@ heimdall_scripts/
 fitter.C                  Create validation experiments and evaluate CNF seeds.
 diagnose.C                Diagnostic studies of generating and best-fit points.
 environment.yml           Conda environment specification.
+generate.sh               Submits global fits to the grid
 ```
 
 ---
